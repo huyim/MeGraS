@@ -86,8 +86,8 @@ object Cli {
                     when (e) {
                         is com.github.ajalt.clikt.core.NoSuchSubcommand -> println("command not found")
                         is com.github.ajalt.clikt.core.PrintHelpMessage -> println(e.command.getFormattedHelp())
-                        is com.github.ajalt.clikt.core.UsageError -> println("invalid command")
                         is com.github.ajalt.clikt.core.NoSuchOption -> println(e.localizedMessage)
+                        is com.github.ajalt.clikt.core.UsageError -> println("invalid command")
                         else -> e.printStackTrace()
                     }
                 }

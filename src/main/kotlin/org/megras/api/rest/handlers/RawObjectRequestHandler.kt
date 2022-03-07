@@ -1,12 +1,13 @@
 package org.megras.api.rest.handlers
 
 import io.javalin.http.Context
+import org.megras.api.rest.GetRequestHandler
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.fs.StoredObjectId
 
-class RawObjectRequestHandler(private val objectStore: FileSystemObjectStore) {
+class RawObjectRequestHandler(private val objectStore: FileSystemObjectStore) : GetRequestHandler {
 
-    fun get(ctx: Context) {
+    override fun get(ctx: Context) {
 
         val id = StoredObjectId.of(ctx.pathParam("objectId"))
 
