@@ -56,7 +56,7 @@ object IdUtil {
             }
             MediaType.AUDIO -> TODO()
             MediaType.UNKNOWN -> "${MediaType.UNKNOWN.prefix}${HashUtil.hashToBase64(FileInputStream(file))}"
-        }
+        }.trim()
 
 
     }

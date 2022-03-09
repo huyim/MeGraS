@@ -50,6 +50,9 @@ dependencies {
     implementation group: 'com.sksamuel.scrimage', name: 'scrimage-formats-extra', version: '4.0.31'
     implementation group: 'com.sksamuel.scrimage', name: 'scrimage-webp', version: '4.0.31'
 
+    /* CSV */
+    implementation group: 'com.github.doyaaaaaken', name: 'kotlin-csv-jvm', version: '1.2.0'
+
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.6.10'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'

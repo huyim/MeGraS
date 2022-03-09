@@ -8,19 +8,20 @@ import io.javalin.apibuilder.ApiBuilder.*
 import org.megras.api.rest.handlers.CachedSegmentRequestHandler
 import org.megras.api.rest.handlers.CanonicalObjectRequestHandler
 import org.megras.api.rest.handlers.CanonicalSegmentRequestHandler
+import org.megras.graphstore.MutableQuadSet
 
 object RestApi {
 
     private var javalin: Javalin? = null
 
-    fun init(config: Config, objectStore: FileSystemObjectStore) {
+    fun init(config: Config, objectStore: FileSystemObjectStore, quadSet: MutableQuadSet) {
 
         if (javalin != null) {
             stop() //stop instance in case there already is one. should not happen, just in case
         }
 
         val rawObjectRequestHandler = RawObjectRequestHandler(objectStore)
-        val canonicalObjectRequestHandler = CanonicalObjectRequestHandler()
+        val canonicalObjectRequestHandler = CanonicalObjectRequestHandler(quadSet, objectStore)
         val cachedSegmentRequestHandler = CachedSegmentRequestHandler()
         val canonicalSegmentRequestHandler = CanonicalSegmentRequestHandler()
 

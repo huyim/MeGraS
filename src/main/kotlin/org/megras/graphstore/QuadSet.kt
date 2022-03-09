@@ -24,4 +24,16 @@ interface QuadSet : Set<Quad> {
      */
     fun filterObject(`object`: String): QuadSet
 
+    /**
+     * returns a [QuadSet] only containing subjects, predicates, and objects specified in the supplied collections.
+     * null serves as 'any' selector
+     */
+    fun filter(subjects: Collection<String>?, predicates: Collection<String>?, objects: Collection<String>?): QuadSet
+
+    fun toMutable(): MutableQuadSet
+
+    fun toSet(): Set<Quad>
+
+    operator fun plus(other: QuadSet): QuadSet
+
 }

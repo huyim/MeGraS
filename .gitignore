@@ -173,3 +173,4 @@ gradle-app.setting
 .idea
 /store/
 src/main/kotlin/org/megras/Playground.kt
+quads.tsv

@@ -4,6 +4,7 @@ import org.megras.api.cli.Cli
 import org.megras.api.rest.RestApi
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.model.Config
+import org.megras.graphstore.TSVMutableQuadSet
 import java.io.File
 
 object MeGraS {
@@ -19,7 +20,9 @@ object MeGraS {
 
         val objectStore = FileSystemObjectStore(config.objectStoreBase)
 
-        RestApi.init(config, objectStore)
+        val quadSet = TSVMutableQuadSet(File("quads.tsv"))
+
+        RestApi.init(config, objectStore, quadSet)
 
         Cli.loop()
 
