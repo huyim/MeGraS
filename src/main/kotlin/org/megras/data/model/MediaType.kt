@@ -16,6 +16,8 @@ enum class MediaType(val prefix: Char, val mimeTypes: Set<MimeType>) {
             t.mimeTypes.map { it to t }
         }.toMap()
 
+        val prefixMap = values().associateBy { it.prefix }
+
     }
 
 }

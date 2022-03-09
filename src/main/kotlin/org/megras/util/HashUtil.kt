@@ -1,6 +1,7 @@
 package org.megras.util
 
 import org.megras.util.extensions.toBase32
+import org.megras.util.extensions.toBase64
 import org.megras.util.extensions.toHex
 import java.io.InputStream
 import java.security.MessageDigest
@@ -27,5 +28,7 @@ object HashUtil {
     fun hashToHex(stream: InputStream): String = hash(stream).toHex()
 
     fun hashToBase32(stream: InputStream): String = hash(stream).toBase32()
+
+    fun hashToBase64(stream: InputStream): String = hash(stream).toBase64()
 
 }
