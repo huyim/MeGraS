@@ -8,12 +8,10 @@ enum class SegmentationType {
      */
     RECT,
 
-
     /**
      * 2d polygon defined by a closed series of (x, y) points
      */
     POLYGON,
-
 
 
 }

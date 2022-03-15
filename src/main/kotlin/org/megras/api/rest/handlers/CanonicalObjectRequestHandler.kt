@@ -11,9 +11,11 @@ class CanonicalObjectRequestHandler(private val quads: QuadSet, private val obje
 
     override fun get(ctx: Context) {
 
-        val id = ctx.pathParam("objectId")
-
-        val rawId = quads.filter(setOf(id), setOf(MeGraS.RAW_ID.string), null).firstOrNull()?.`object`
+        val rawId = quads.filter(
+            setOf(ctx.pathParam("objectId")),
+            setOf(MeGraS.RAW_ID.string),
+            null
+        ).firstOrNull()?.`object`
 
         if (rawId == null) {
             ctx.status(404)
@@ -23,20 +25,8 @@ class CanonicalObjectRequestHandler(private val quads: QuadSet, private val obje
 
         val osId = StoredObjectId.of(rawId)
 
-        if (osId == null) {
-            ctx.status(403)
-            ctx.result("invalid id")
-            return
-        }
+        RawObjectRequestHandler.streamObject(osId, objectStore, ctx)
 
-        val result = objectStore.get(osId)
-
-        if (result == null) {
-            ctx.status(404)
-            ctx.result("Not found")
-        } else {
-            ctx.seekableStream(result.inputStream(), result.descriptor.mimeType.mimeString)
-        }
     }
 
 

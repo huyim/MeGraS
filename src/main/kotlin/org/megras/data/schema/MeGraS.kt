@@ -3,7 +3,9 @@ package org.megras.data.schema
 enum class MeGraS(private val suffix: String) {
 
 
-    RAW_ID("rawId")
+    RAW_ID("rawId"),
+    MEDIA_TYPE("mediaType"),
+    MIME_TYPE("mimeType")
 
 
     ;

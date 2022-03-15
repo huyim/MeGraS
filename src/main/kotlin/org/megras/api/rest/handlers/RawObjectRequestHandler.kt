@@ -11,20 +11,26 @@ class RawObjectRequestHandler(private val objectStore: FileSystemObjectStore) : 
 
         val id = StoredObjectId.of(ctx.pathParam("objectId"))
 
-        if (id == null) {
-            ctx.status(403)
-            ctx.result("invalid id")
-            return
-        }
+        streamObject(id, objectStore, ctx)
 
-        val result = objectStore.get(id)
-        if (result == null) {
-            ctx.status(404)
-            ctx.result("Not found")
-        } else {
-            ctx.seekableStream(result.inputStream(), result.descriptor.mimeType.mimeString)
-        }
+    }
 
+    companion object{
+        fun streamObject(id: StoredObjectId?, objectStore: FileSystemObjectStore, ctx: Context) {
+            if (id == null) {
+                ctx.status(403)
+                ctx.result("invalid id")
+                return
+            }
+
+            val result = objectStore.get(id)
+            if (result == null) {
+                ctx.status(404)
+                ctx.result("Not found")
+            } else {
+                ctx.seekableStream(result.inputStream(), result.descriptor.mimeType.mimeString)
+            }
+        }
     }
 
 }
