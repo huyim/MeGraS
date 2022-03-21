@@ -13,6 +13,8 @@ import org.jline.reader.UserInterruptException
 import org.jline.reader.impl.completer.AggregateCompleter
 import org.jline.reader.impl.completer.StringsCompleter
 import org.jline.terminal.TerminalBuilder
+import org.megras.data.fs.FileSystemObjectStore
+import org.megras.graphstore.MutableQuadSet
 import java.io.IOException
 import java.util.ArrayList
 import java.util.regex.Pattern
@@ -30,12 +32,13 @@ object Cli {
 
     private lateinit var clikt: CliktCommand
 
+    fun init(quads: MutableQuadSet, objectStore: FileSystemObjectStore) {
+        clikt = BaseCommand().subcommands(
+            AddFileCommand(quads, objectStore)
+        )
+    }
 
     fun loop() {
-
-        clikt = BaseCommand().subcommands(
-            //TODO add commands
-        )
 
         val terminal = try {
             TerminalBuilder.builder().build()

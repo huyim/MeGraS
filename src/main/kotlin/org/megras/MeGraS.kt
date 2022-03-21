@@ -24,6 +24,8 @@ object MeGraS {
 
         RestApi.init(config, objectStore, quadSet)
 
+        Cli.init(quadSet, objectStore)
+
         Cli.loop()
 
         RestApi.stop()
