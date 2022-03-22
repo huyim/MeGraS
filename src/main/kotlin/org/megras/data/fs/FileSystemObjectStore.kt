@@ -26,6 +26,8 @@ class FileSystemObjectStore(objectStoreBase: String) {
         }
     }
 
+    fun idFromStream(stream: InputStream): StoredObjectId = StoredObjectId(HashUtil.hashToBase32(stream).dropLast(4)) //last four are always '='
+
 
     @Throws(FileNotFoundException::class, IOException::class)
     fun store(file: File): StoredObjectDescriptor {
@@ -38,7 +40,7 @@ class FileSystemObjectStore(objectStoreBase: String) {
             throw IOException("cannot read file '${file.absolutePath}'")
         }
 
-        val id = StoredObjectId(HashUtil.hashToBase32(file.inputStream()).dropLast(4)) //last four are always '='
+        val id = idFromStream(file.inputStream())
         val descriptor = StoredObjectDescriptor(id, MimeType.mimeType(file.extension), file.length())
 
         store(file.inputStream(), descriptor)

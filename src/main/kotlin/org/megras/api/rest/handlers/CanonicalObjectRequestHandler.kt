@@ -13,7 +13,7 @@ class CanonicalObjectRequestHandler(private val quads: QuadSet, private val obje
 
         val rawId = quads.filter(
             setOf(ctx.pathParam("objectId")),
-            setOf(MeGraS.RAW_ID.string),
+            setOf(MeGraS.CANONICAL_ID.string),
             null
         ).firstOrNull()?.`object`
 
