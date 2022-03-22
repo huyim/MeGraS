@@ -16,6 +16,8 @@ dependencies {
     def log4jVersion = '2.17.1'
     def jlineVersion = '3.21.0'
     def jacksonVersion = '2.13.1'
+    def scrimageVersion = '4.0.31'
+    def twelvemonkeysVersion = '3.8.2'
 
     /* Javalin */
     implementation group: 'io.javalin', name: 'javalin', version: '4.3.0'
@@ -46,12 +48,18 @@ dependencies {
     implementation group: 'com.github.ajalt', name: 'clikt', version: '2.8.0'
 
     /* Scrimage */
-    implementation group: 'com.sksamuel.scrimage', name: 'scrimage-core', version: '4.0.31'
-    implementation group: 'com.sksamuel.scrimage', name: 'scrimage-formats-extra', version: '4.0.31'
-    implementation group: 'com.sksamuel.scrimage', name: 'scrimage-webp', version: '4.0.31'
+    implementation group: 'com.sksamuel.scrimage', name: 'scrimage-core', version: scrimageVersion
+    implementation group: 'com.sksamuel.scrimage', name: 'scrimage-formats-extra', version: scrimageVersion
+    implementation group: 'com.sksamuel.scrimage', name: 'scrimage-webp', version: scrimageVersion
 
     /* CSV */
     implementation group: 'com.github.doyaaaaaken', name: 'kotlin-csv-jvm', version: '1.2.0'
+
+    /* Image decoding */
+    implementation group: 'com.twelvemonkeys.imageio',  name: 'imageio-jpeg',       version: twelvemonkeysVersion
+    implementation group: 'com.twelvemonkeys.imageio',  name: 'imageio-batik',      version: twelvemonkeysVersion
+    implementation group: 'org.apache.xmlgraphics',     name: 'batik-transcoder',   version: '1.14'
+    implementation group: 'com.twelvemonkeys.imageio',  name: 'imageio-tiff',       version: twelvemonkeysVersion
 
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.6.10'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'

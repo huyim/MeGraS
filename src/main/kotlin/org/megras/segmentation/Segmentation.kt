@@ -45,6 +45,18 @@ data class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: 
         )
     )
 
+    val width: Double
+        get() = xmax - xmin
+
+    val height: Double
+        get() = ymax - ymin
+
+
+    fun clip(xmin: Double, xmax: Double, ymin: Double, ymax: Double, zmin: Double = Double.NEGATIVE_INFINITY, zmax: Double = Double.POSITIVE_INFINITY): Rect = Rect(
+        max(this.xmin, xmin), min(this.xmax, xmax),
+        max(this.ymin, ymin), min(this.ymax, ymax),
+        max(this.zmin, zmin), min(this.zmax, zmax)
+    )
 
 }
 
@@ -115,6 +127,8 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
     override fun hashCode(): Int {
         return vertices.sortedBy { it.first }.sortedBy { it.second }.hashCode()
     }
+
+    fun move(dx: Double, dy: Double) : Polygon = Polygon(vertices.map { it.first + dx to it.second + dy })
 
 
 }
