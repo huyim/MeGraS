@@ -80,7 +80,7 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
             xmin = min(xmin, it.first)
             xmax = max(xmax, it.first)
             ymin = min(ymin, it.second)
-            ymax = max(xmax, it.second)
+            ymax = max(ymax, it.second)
         }
 
         return Rect(xmin, xmax, ymin, ymax)

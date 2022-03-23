@@ -26,14 +26,14 @@ object ImageSegmenter {
     }
 
 
-    fun segmentPolygon(image: BufferedImage, polygon: Polygon): BufferedImage {
+    private fun segmentPolygon(image: BufferedImage, polygon: Polygon): BufferedImage {
 
         val boundingRect = polygon.boundingRect()
-        val movedPolygon = polygon.move(boundingRect.xmin, boundingRect.ymin)
+        val movedPolygon = polygon.move(-boundingRect.xmin, -boundingRect.ymin)
 
-        val clip = java.awt.Polygon(movedPolygon.vertices.map { it.first.toInt() }.toIntArray(), movedPolygon.vertices.map { it.first.toInt() }.toIntArray(), polygon.vertices.size)
-        val out = BufferedImage(boundingRect.width.toInt(), boundingRect.height.toInt(), image.type)
-        val g = out.graphics
+        val clip = java.awt.Polygon(movedPolygon.vertices.map { it.first.toInt() }.toIntArray(), movedPolygon.vertices.map { it.second.toInt() }.toIntArray(), polygon.vertices.size)
+        val out = BufferedImage(boundingRect.width.toInt(), boundingRect.height.toInt(), BufferedImage.TYPE_INT_ARGB)
+        val g = out.createGraphics() //TODO replace clipping with mask alpha blending to get smooth edges
         g.clip = clip
         g.drawImage(image, -boundingRect.xmin.toInt(), -boundingRect.ymin.toInt(), null)
         g.dispose()

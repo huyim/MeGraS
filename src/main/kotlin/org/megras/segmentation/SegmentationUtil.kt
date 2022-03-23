@@ -54,7 +54,30 @@ object SegmentationUtil {
 
 
         }
-        SegmentationType.POLYGON -> TODO()
+        /**
+         * (x,y),(x,y),...,(x,y)
+         */
+        SegmentationType.POLYGON -> {
+
+            val points = definition.split("),").map { chunk ->
+                val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
+                if (coords.any { it == null }) {
+                    null
+                } else if (coords.size < 2) {
+                    null
+                } else {
+                    coords[0]!! to coords[1]!!
+                }
+            }
+
+            val finalPoints = points.filterNotNull()
+
+            if (finalPoints.size == points.size) {
+                Polygon(finalPoints)
+            } else {
+                null
+            }
+        }
     }
 
 
