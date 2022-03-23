@@ -22,7 +22,7 @@ object RestApi {
 
         val rawObjectRequestHandler = RawObjectRequestHandler(objectStore)
         val canonicalObjectRequestHandler = CanonicalObjectRequestHandler(quadSet, objectStore)
-        val cachedSegmentRequestHandler = CachedSegmentRequestHandler()
+        val cachedSegmentRequestHandler = CachedSegmentRequestHandler(quadSet, objectStore)
         val canonicalSegmentRequestHandler = CanonicalSegmentRequestHandler(quadSet, objectStore)
 
 

@@ -3,17 +3,23 @@ package org.megras.api.rest.handlers
 import io.javalin.http.Context
 import org.megras.api.rest.GetRequestHandler
 import org.megras.data.fs.FileSystemObjectStore
+import org.megras.data.fs.StoredObjectDescriptor
 import org.megras.data.fs.StoredObjectId
+import org.megras.data.graph.Quad
 import org.megras.data.mime.MimeType
 import org.megras.data.model.MediaType
 import org.megras.data.schema.MeGraS
+import org.megras.data.schema.SchemaOrg
+import org.megras.graphstore.MutableQuadSet
 import org.megras.graphstore.QuadSet
 import org.megras.segmentation.ImageSegmenter
 import org.megras.segmentation.SegmentationUtil
+import org.megras.util.HashUtil
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
-class CanonicalSegmentRequestHandler(private val quads: QuadSet, private val objectStore: FileSystemObjectStore) : GetRequestHandler {
+class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private val objectStore: FileSystemObjectStore) : GetRequestHandler {
 
     /**
      * /{objectId}/segment/{segmentation}/<segmentDefinition>"
@@ -67,6 +73,17 @@ class CanonicalSegmentRequestHandler(private val quads: QuadSet, private val obj
             return
         }
 
+        //check cache
+        quads.filter(listOf(ctx.path()), listOf(SchemaOrg.SAME_AS.string), null).forEach {
+            val cached = it.`object`
+            ctx.redirect("/$cached")
+            return
+        }
+
+        //TODO check cache for equivalent segmentations
+
+
+
         when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
             MediaType.TEXT -> TODO()
             MediaType.IMAGE -> { //TODO cache
@@ -83,8 +100,29 @@ class CanonicalSegmentRequestHandler(private val quads: QuadSet, private val obj
 
                 ImageIO.write(segment, "PNG", out)
 
+                val buf = out.toByteArray()
+
                 ctx.contentType(MimeType.PNG.mimeString)
-                ctx.result(out.toByteArray())
+                ctx.result(buf)
+
+
+                val inStream = ByteArrayInputStream(buf)
+
+                val cachedObjectId = objectStore.idFromStream(inStream)
+                val descriptor = StoredObjectDescriptor(
+                    cachedObjectId,
+                    MimeType.PNG,
+                    buf.size.toLong()
+                )
+
+                inStream.reset()
+                objectStore.store(inStream, descriptor)
+
+                val cacheId = HashUtil.hashToBase64("${ctx.pathParam("segmentation")}/${ctx.pathParam("segmentDefinition")}")
+                val cacheObject = "$objectId/c/$cacheId"
+
+                quads.add(Quad(cacheObject, MeGraS.RAW_ID.string, descriptor.id.id))
+                quads.add(Quad(ctx.path(), SchemaOrg.SAME_AS.string, cacheObject))
 
             }
             MediaType.AUDIO -> TODO()
