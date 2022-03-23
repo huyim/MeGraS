@@ -2,6 +2,7 @@ package org.megras.api.rest.handlers
 
 import io.javalin.http.Context
 import org.megras.api.rest.GetRequestHandler
+import org.megras.api.rest.RestErrorStatus
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.fs.StoredObjectDescriptor
 import org.megras.data.fs.StoredObjectId
@@ -31,17 +32,13 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         val segmentationTypes = SegmentationUtil.parseSegmentationType(ctx.pathParam("segmentation"))
 
         if (segmentationTypes.any { it == null }) {
-            ctx.status(403)
-            ctx.result("invalid segmentation type")
-            return
+            throw RestErrorStatus(403, "invalid segmentation type")
         }
 
         val segmentations = SegmentationUtil.parseSegmentation(segmentationTypes.filterNotNull(), ctx.pathParam("segmentDefinition"))
 
         if(segmentations.isEmpty()) {
-            ctx.status(403)
-            ctx.result("invalid segmentation")
-            return
+            throw RestErrorStatus(403, "invalid segmentation type")
         }
 
 
@@ -49,29 +46,13 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             setOf(ctx.pathParam("objectId")),
             setOf(MeGraS.CANONICAL_ID.string),
             null
-        ).firstOrNull()?.`object`
+        ).firstOrNull()?.`object` ?: throw RestErrorStatus.notFound
 
-        if (rawId == null) {
-            ctx.status(404)
-            ctx.result("not found")
-            return
-        }
 
-        val osId = StoredObjectId.of(rawId)
+        val osId = StoredObjectId.of(rawId) ?: throw RestErrorStatus.notFound
 
-        if (osId == null) {
-            ctx.status(404)
-            ctx.result("not found")
-            return
-        }
+        val storedObject = objectStore.get(osId) ?: throw RestErrorStatus.notFound
 
-        val storedObject = objectStore.get(osId)
-
-        if (storedObject == null) {
-            ctx.status(404)
-            ctx.result("not found")
-            return
-        }
 
         //check cache
         quads.filter(listOf(ctx.path()), listOf(SchemaOrg.SAME_AS.string), null).forEach {
@@ -89,12 +70,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             MediaType.IMAGE -> { //TODO cache
 
                 val img = ImageIO.read(storedObject.inputStream())
-                val segment = ImageSegmenter.segment(img, segmentations.first())
-
-                if (segment == null) {
-                    ctx.status(403)
-                    ctx.result("invalid segmentation")
-                }
+                val segment = ImageSegmenter.segment(img, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
 
                 val out = ByteArrayOutputStream()
 
@@ -118,7 +94,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 inStream.reset()
                 objectStore.store(inStream, descriptor)
 
-                val cacheId = HashUtil.hashToBase64("${ctx.pathParam("segmentation")}/${ctx.pathParam("segmentDefinition")}")
+                val cacheId = HashUtil.hashToBase64("${ctx.pathParam("segmentation")}/${ctx.pathParam("segmentDefinition")}", HashUtil.HashType.MD5)
                 val cacheObject = "$objectId/c/$cacheId"
 
                 quads.add(Quad(cacheObject, MeGraS.RAW_ID.string, descriptor.id.id))

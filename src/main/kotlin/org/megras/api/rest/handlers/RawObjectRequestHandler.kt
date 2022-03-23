@@ -2,6 +2,7 @@ package org.megras.api.rest.handlers
 
 import io.javalin.http.Context
 import org.megras.api.rest.GetRequestHandler
+import org.megras.api.rest.RestErrorStatus
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.fs.StoredObjectId
 
@@ -9,27 +10,18 @@ class RawObjectRequestHandler(private val objectStore: FileSystemObjectStore) : 
 
     override fun get(ctx: Context) {
 
-        val id = StoredObjectId.of(ctx.pathParam("objectId"))
+        val id = StoredObjectId.of(ctx.pathParam("objectId")) ?: throw RestErrorStatus(403, "invalid id")
 
         streamObject(id, objectStore, ctx)
 
     }
 
     companion object{
-        fun streamObject(id: StoredObjectId?, objectStore: FileSystemObjectStore, ctx: Context) {
-            if (id == null) {
-                ctx.status(403)
-                ctx.result("invalid id")
-                return
-            }
+        fun streamObject(id: StoredObjectId, objectStore: FileSystemObjectStore, ctx: Context) {
 
-            val result = objectStore.get(id)
-            if (result == null) {
-                ctx.status(404)
-                ctx.result("Not found")
-            } else {
-                ctx.seekableStream(result.inputStream(), result.descriptor.mimeType.mimeString)
-            }
+            val result = objectStore.get(id) ?: throw RestErrorStatus.notFound
+            ctx.seekableStream(result.inputStream(), result.descriptor.mimeType.mimeString)
+
         }
     }
 

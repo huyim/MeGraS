@@ -34,6 +34,9 @@ object RestApi {
             get("/{objectId}", canonicalObjectRequestHandler::get)
             get("/{objectId}/c/{segmentId}", cachedSegmentRequestHandler::get)
             get("/{objectId}/segment/{segmentation}/<segmentDefinition>", canonicalSegmentRequestHandler::get)
+        }.exception(RestErrorStatus::class.java) { e, ctx ->
+            ctx.status(e.statusCode)
+            ctx.result(e.message)
         }.start(config.httpPort)
     }
 
