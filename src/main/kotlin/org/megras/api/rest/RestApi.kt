@@ -1,13 +1,10 @@
 package org.megras.api.rest
 
 import io.javalin.Javalin
-import org.megras.api.rest.handlers.RawObjectRequestHandler
+import io.javalin.apibuilder.ApiBuilder.get
+import org.megras.api.rest.handlers.*
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.model.Config
-import io.javalin.apibuilder.ApiBuilder.*
-import org.megras.api.rest.handlers.CachedSegmentRequestHandler
-import org.megras.api.rest.handlers.CanonicalObjectRequestHandler
-import org.megras.api.rest.handlers.CanonicalSegmentRequestHandler
 import org.megras.graphstore.MutableQuadSet
 
 object RestApi {
@@ -24,6 +21,7 @@ object RestApi {
         val canonicalObjectRequestHandler = CanonicalObjectRequestHandler(quadSet, objectStore)
         val cachedSegmentRequestHandler = CachedSegmentRequestHandler(quadSet, objectStore)
         val canonicalSegmentRequestHandler = CanonicalSegmentRequestHandler(quadSet, objectStore)
+        val aboutObjectRequestHandler = AboutObjectRequestHandler(quadSet, objectStore)
 
 
         javalin = Javalin.create {
@@ -32,6 +30,7 @@ object RestApi {
         }.routes {
             get("/raw/{objectId}", rawObjectRequestHandler::get)
             get("/{objectId}", canonicalObjectRequestHandler::get)
+            get("/{objectId}/about", aboutObjectRequestHandler::get)
             get("/{objectId}/c/{segmentId}", cachedSegmentRequestHandler::get)
             get("/{objectId}/segment/{segmentation}/<segmentDefinition>", canonicalSegmentRequestHandler::get)
         }.exception(RestErrorStatus::class.java) { e, ctx ->
