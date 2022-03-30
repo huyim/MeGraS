@@ -2,6 +2,7 @@ package org.megras.id
 
 import com.sksamuel.scrimage.ImmutableImage
 import com.sksamuel.scrimage.pixels.Pixel
+import org.megras.data.fs.file.PseudoFile
 import org.megras.data.mime.MimeType
 import org.megras.data.model.MediaType
 import org.megras.util.HashUtil
@@ -13,53 +14,51 @@ import kotlin.experimental.or
 
 object IdUtil {
 
-    fun getMediaType(id: String) : MediaType = if (id.isBlank()){
+    fun getMediaType(id: String): MediaType = if (id.isBlank()) {
         MediaType.UNKNOWN
     } else {
         MediaType.prefixMap[id[0]] ?: MediaType.UNKNOWN
     }
 
-    fun generateId(file: File) : String {
+    fun generateId(file: PseudoFile): ObjectId {
 
         val mimeType = MimeType.mimeType(file.extension)
         val mediaType = MediaType.mimeTypeMap[mimeType] ?: MediaType.UNKNOWN
 
-        return when(mediaType) {
-            MediaType.TEXT -> TODO()
-            MediaType.IMAGE -> {
+        return ObjectId(
+            when (mediaType) {
+                MediaType.TEXT -> TODO()
+                MediaType.IMAGE -> {
 
+                    //computing simple perceptual hash
+                    fun luminance(pixel: Pixel): Float =
+                        0.2126f * pixel.red() + 0.7152f * pixel.green() + 0.0722f * pixel.blue()
 
-                //computing simple perceptual hash
-                fun luminance(pixel: Pixel): Float = 0.2126f * pixel.red() + 0.7152f * pixel.green() + 0.0722f * pixel.blue()
+                    val luminances = mutableListOf<Float>()
 
-                val luminances = mutableListOf<Float>()
+                    ImmutableImage.loader().fromBytes(file.bytes()).resizeTo(8, 8).forEach { luminances.add(luminance(it)) }
 
-                ImmutableImage.loader().fromFile(file).resizeTo(8, 8).forEach { luminances.add(luminance(it)) }
+                    val meanLuminance = luminances.sum() / 64f
 
-                val meanLuminance = luminances.sum() / 64f
+                    val bits = luminances.map { it > meanLuminance }
 
-                val bits = luminances.map { it > meanLuminance }
+                    val bytes = ByteArray(8)
 
-                val bytes = ByteArray(8)
-
-                for (i in 0..7) {
-                    for (j in 0..7) {
-                        if (bits[8*i + j]) {
-                            bytes[i] = bytes[i] or ((1 shl j).toByte())
+                    for (i in 0..7) {
+                        for (j in 0..7) {
+                            if (bits[8 * i + j]) {
+                                bytes[i] = bytes[i] or ((1 shl j).toByte())
+                            }
                         }
                     }
+
+                    //prefix + phash + file hash
+                    MediaType.IMAGE.prefix + (bytes + HashUtil.hash(file.inputStream())).toBase64()
+
                 }
-
-                //prefix + phash + file hash
-                MediaType.IMAGE.prefix + (bytes + HashUtil.hash(FileInputStream(file))).toBase64()
-
-            }
-            MediaType.AUDIO -> TODO()
-            MediaType.UNKNOWN -> "${MediaType.UNKNOWN.prefix}${HashUtil.hashToBase64(FileInputStream(file))}"
-        }.trim()
-
-
+                MediaType.AUDIO -> TODO()
+                MediaType.UNKNOWN -> "${MediaType.UNKNOWN.prefix}${HashUtil.hashToBase64(file.inputStream())}"
+            }.trim())
     }
-
 
 }

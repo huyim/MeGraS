@@ -1,7 +1,7 @@
 package org.megras.data.fs
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
+import org.megras.data.fs.file.PseudoFile
 import org.megras.data.mime.MimeType
 import org.megras.util.HashUtil
 import org.slf4j.LoggerFactory
@@ -40,13 +40,17 @@ class FileSystemObjectStore(objectStoreBase: String) {
             throw IOException("cannot read file '${file.absolutePath}'")
         }
 
+        return store(PseudoFile(file))
+
+    }
+
+    fun store(file: PseudoFile): StoredObjectDescriptor {
         val id = idFromStream(file.inputStream())
         val descriptor = StoredObjectDescriptor(id, MimeType.mimeType(file.extension), file.length())
 
         store(file.inputStream(), descriptor)
 
         return descriptor
-
     }
 
     fun store(stream: InputStream, descriptor: StoredObjectDescriptor) {

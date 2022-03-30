@@ -1,6 +1,7 @@
 package org.megras.segmentation
 
 import java.awt.image.BufferedImage
+import kotlin.math.roundToInt
 
 
 object ImageSegmenter {
@@ -18,9 +19,9 @@ object ImageSegmenter {
             return null
         }
 
-        val out = BufferedImage(boundRect.width.toInt(), boundRect.height.toInt(), image.type)
+        val out = BufferedImage(boundRect.width.roundToInt(), boundRect.height.roundToInt(), image.type)
         val g = out.graphics
-        g.drawImage(image, 0, 0, boundRect.width.toInt(), boundRect.height.toInt(), boundRect.xmin.toInt(), boundRect.ymin.toInt(), boundRect.xmax.toInt(), boundRect.ymax.toInt(), null)
+        g.drawImage(image, 0, 0, boundRect.width.roundToInt(), boundRect.height.roundToInt(), boundRect.xmin.roundToInt(), boundRect.ymin.roundToInt(), boundRect.xmax.roundToInt(), boundRect.ymax.roundToInt(), null)
         g.dispose()
         return out
     }
@@ -31,11 +32,11 @@ object ImageSegmenter {
         val boundingRect = polygon.boundingRect()
         val movedPolygon = polygon.move(-boundingRect.xmin, -boundingRect.ymin)
 
-        val clip = java.awt.Polygon(movedPolygon.vertices.map { it.first.toInt() }.toIntArray(), movedPolygon.vertices.map { it.second.toInt() }.toIntArray(), polygon.vertices.size)
-        val out = BufferedImage(boundingRect.width.toInt(), boundingRect.height.toInt(), BufferedImage.TYPE_INT_ARGB)
+        val clip = java.awt.Polygon(movedPolygon.vertices.map { it.first.roundToInt() }.toIntArray(), movedPolygon.vertices.map { it.second.roundToInt() }.toIntArray(), polygon.vertices.size)
+        val out = BufferedImage(boundingRect.width.roundToInt(), boundingRect.height.roundToInt(), BufferedImage.TYPE_INT_ARGB)
         val g = out.createGraphics() //TODO replace clipping with mask alpha blending to get smooth edges
         g.clip = clip
-        g.drawImage(image, -boundingRect.xmin.toInt(), -boundingRect.ymin.toInt(), null)
+        g.drawImage(image, -boundingRect.xmin.roundToInt(), -boundingRect.ymin.roundToInt(), null)
         g.dispose()
         return out
     }

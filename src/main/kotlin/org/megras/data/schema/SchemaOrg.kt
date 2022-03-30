@@ -1,12 +1,14 @@
 package org.megras.data.schema
 
-enum class SchemaOrg(private val suffix: String) {
+import org.megras.data.HasString
+
+enum class SchemaOrg(private val suffix: String): HasString {
 
     SAME_AS("sameAs")
 
     ;
 
-    val string: String
+    override val string: String
         get() = "${prefix}${suffix}"
 
     companion object {

@@ -1,6 +1,9 @@
 package org.megras.data.mime
 
-enum class MimeType(val mimeString: String) {
+import org.megras.data.HasString
+import kotlin.system.measureTimeMillis
+
+enum class MimeType(val mimeString: String) : HasString {
 
     //binary
     OCTET_STREAM("octet-stream"),
@@ -34,7 +37,8 @@ enum class MimeType(val mimeString: String) {
     WAX("audio/x-ms-wax"),
     WMA("audio/x-ms-wma");
 
-
+    override val string: String
+        get() = mimeString
 
     companion object {
         val extensionMap = mapOf(
@@ -89,6 +93,7 @@ enum class MimeType(val mimeString: String) {
         fun mimeType(fileExtension: String) = extensionMap[fileExtension.lowercase()] ?: OCTET_STREAM
 
     }
+
 
 
 

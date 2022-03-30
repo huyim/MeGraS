@@ -2,6 +2,7 @@ package org.megras.api.rest
 
 import io.javalin.Javalin
 import io.javalin.apibuilder.ApiBuilder.get
+import io.javalin.apibuilder.ApiBuilder.post
 import org.megras.api.rest.handlers.*
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.model.Config
@@ -22,6 +23,7 @@ object RestApi {
         val cachedSegmentRequestHandler = CachedSegmentRequestHandler(quadSet, objectStore)
         val canonicalSegmentRequestHandler = CanonicalSegmentRequestHandler(quadSet, objectStore)
         val aboutObjectRequestHandler = AboutObjectRequestHandler(quadSet, objectStore)
+        val addFileRequestHandler = AddFileRequestHandler(quadSet, objectStore)
 
 
         javalin = Javalin.create {
@@ -33,6 +35,7 @@ object RestApi {
             get("/{objectId}/about", aboutObjectRequestHandler::get)
             get("/{objectId}/c/{segmentId}", cachedSegmentRequestHandler::get)
             get("/{objectId}/segment/{segmentation}/<segmentDefinition>", canonicalSegmentRequestHandler::get)
+            post("/add", addFileRequestHandler::post)
         }.exception(RestErrorStatus::class.java) { e, ctx ->
             ctx.status(e.statusCode)
             ctx.result(e.message)
