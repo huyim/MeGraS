@@ -25,7 +25,7 @@ object AddFileUtil {
         quads.add(Quad(oid, MeGraS.RAW_ID, descriptor.id))
         quads.add(Quad(oid, MeGraS.MIME_TYPE, descriptor.mimeType))
         quads.add(Quad(oid, MeGraS.MEDIA_TYPE, MediaType.mimeTypeMap[descriptor.mimeType]!!))
-        quads.add(Quad(oid, MeGraS.FILE_NAME, MediaType.mimeTypeMap[descriptor.mimeType]!!))
+        quads.add(Quad(oid.string, MeGraS.FILE_NAME.string, file.name))
 
         //generate and store canonical
         val canonical = AddFileUtil.generateCanonicalRepresentation(objectStore, descriptor)
