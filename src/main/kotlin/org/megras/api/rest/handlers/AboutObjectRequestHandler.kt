@@ -44,13 +44,13 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
             else -> {/* no preview */}
         }
 
-        buf.append("<pre>\n")
+        buf.append("\n<br><textarea readonly style='width: 100%; min-height: 200px; resize: vertical;'>\n")
         relevant.forEach {
             buf.append("(${it.id}) <${it.subject}> <${it.predicate}> <${it.`object`}>\n")
         }
 
         buf.append("""
-            </pre>
+            </textarea>
             </body>
             </html>
         """.trimIndent())

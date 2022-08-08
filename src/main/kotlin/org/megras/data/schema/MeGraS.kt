@@ -9,7 +9,8 @@ enum class MeGraS(private val suffix: String) : HasString {
     MEDIA_TYPE("mediaType"),
     MIME_TYPE("mimeType"),
     CANONICAL_ID("canonicalId"), //raw id of canonical representation
-    FILE_NAME("fileName")
+    FILE_NAME("fileName"),
+    SEGMENT_OF("segmentOf")
 
 
     ;

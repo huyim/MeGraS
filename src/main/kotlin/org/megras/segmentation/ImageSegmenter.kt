@@ -6,9 +6,14 @@ import kotlin.math.roundToInt
 
 object ImageSegmenter {
 
-    fun segment(image: BufferedImage, segmentation: Segmentation): BufferedImage? = when(segmentation.type) {
-        SegmentationType.RECT -> segmentRect(image, segmentation as Rect)
-        SegmentationType.POLYGON -> segmentPolygon(image, segmentation as Polygon)
+    fun segment(image: BufferedImage, segmentation: Segmentation): BufferedImage? = try {
+        when(segmentation.type) {
+            SegmentationType.RECT -> segmentRect(image, segmentation as Rect)
+            SegmentationType.POLYGON -> segmentPolygon(image, segmentation as Polygon)
+        }
+    } catch (e: Exception) {
+        //TODO log
+        null
     }
 
     private fun segmentRect(image: BufferedImage, rect: Rect) : BufferedImage? {

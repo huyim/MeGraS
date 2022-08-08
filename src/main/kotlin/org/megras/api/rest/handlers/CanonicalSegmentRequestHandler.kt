@@ -67,7 +67,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
         when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
             MediaType.TEXT -> TODO()
-            MediaType.IMAGE -> { //TODO cache
+            MediaType.IMAGE -> {
 
                 val img = ImageIO.read(storedObject.inputStream())
                 val segment = ImageSegmenter.segment(img, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
@@ -77,10 +77,6 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 ImageIO.write(segment, "PNG", out)
 
                 val buf = out.toByteArray()
-
-                ctx.contentType(MimeType.PNG.mimeString)
-                ctx.result(buf)
-
 
                 val inStream = ByteArrayInputStream(buf)
 
@@ -99,6 +95,9 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
                 quads.add(Quad(cacheObject, MeGraS.RAW_ID.string, descriptor.id.id))
                 quads.add(Quad(ctx.path(), SchemaOrg.SAME_AS.string, cacheObject))
+                quads.add(Quad(cacheObject, MeGraS.SEGMENT_OF.string, objectId))
+
+                ctx.redirect("/$cacheObject")
 
             }
             MediaType.AUDIO -> TODO()

@@ -20,7 +20,7 @@ dependencies {
     def twelvemonkeysVersion = '3.8.2'
 
     /* Javalin */
-    implementation group: 'io.javalin', name: 'javalin', version: '4.3.0'
+    implementation group: 'io.javalin', name: 'javalin', version: '4.4.0'
     implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     implementation group: 'com.fasterxml.jackson.module', name: 'jackson-module-kotlin', version: jacksonVersion
     implementation group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310', version: jacksonVersion
@@ -61,7 +61,7 @@ dependencies {
     implementation group: 'org.apache.xmlgraphics',     name: 'batik-transcoder',   version: '1.14'
     implementation group: 'com.twelvemonkeys.imageio',  name: 'imageio-tiff',       version: twelvemonkeysVersion
 
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.6.10'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.6.21'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
 }
