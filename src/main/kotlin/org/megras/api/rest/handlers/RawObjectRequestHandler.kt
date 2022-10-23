@@ -20,7 +20,7 @@ class RawObjectRequestHandler(private val objectStore: FileSystemObjectStore) : 
         fun streamObject(id: StoredObjectId, objectStore: FileSystemObjectStore, ctx: Context) {
 
             val result = objectStore.get(id) ?: throw RestErrorStatus.notFound
-            ctx.seekableStream(result.inputStream(), result.descriptor.mimeType.mimeString)
+            ctx.writeSeekableStream(result.inputStream(), result.descriptor.mimeType.mimeString)
 
         }
     }

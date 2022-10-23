@@ -52,4 +52,4 @@ class ByteArrayPseudoFile(private val buf: ByteArray, override val name: String)
 
 fun PseudoFile(buf: ByteArray, name: String) = ByteArrayPseudoFile(buf, name)
 
-fun PseudoFile(uploadedFile: UploadedFile) = ByteArrayPseudoFile(uploadedFile.content.readAllBytes(), uploadedFile.filename)
+fun PseudoFile(uploadedFile: UploadedFile) = ByteArrayPseudoFile(uploadedFile.content().readAllBytes(), uploadedFile.filename())

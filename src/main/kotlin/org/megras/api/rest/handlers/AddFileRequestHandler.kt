@@ -24,10 +24,10 @@ class AddFileRequestHandler(private val quads: MutableQuadSet, private val objec
         val mapper = jacksonObjectMapper()
 
         val ids = files.associate { uploadedFile ->
-            val mapentry = uploadedFile.filename to AddFileUtil.addFile(objectStore, quads, PseudoFile(uploadedFile))
+            val mapentry = uploadedFile.filename() to AddFileUtil.addFile(objectStore, quads, PseudoFile(uploadedFile))
 
             //check for metadata
-            val meta = ctx.formParam(uploadedFile.filename)
+            val meta = ctx.formParam(uploadedFile.filename())
             if (meta != null) {
                 val metaMap = mapper.readValue(meta, Map::class.java)
                 metaMap.forEach { (key, value) ->

@@ -27,7 +27,11 @@ object RestApi {
 
 
         javalin = Javalin.create {
-            it.enableCorsForAllOrigins()
+            it.plugins.enableCors { cors ->
+                cors.add { corsPluginConfig ->
+                    corsPluginConfig.anyHost()
+                }
+            }
             it.showJavalinBanner = false
         }.routes {
             get("/raw/{objectId}", rawObjectRequestHandler::get)
