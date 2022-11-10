@@ -30,6 +30,7 @@ object MeGraS {
 
         RestApi.stop()
 
+        quadSet.store()
 
     }
 

@@ -45,10 +45,10 @@ class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
     private var lastStoreTime = 0L
 
     @Synchronized
-    private fun store() {
+    fun store() {
 
         //rate limit writes
-        if ((System.currentTimeMillis() - lastStoreTime) < 30_000) {
+        if ((System.currentTimeMillis() - lastStoreTime) < 60_000) {
             return
         }
 
