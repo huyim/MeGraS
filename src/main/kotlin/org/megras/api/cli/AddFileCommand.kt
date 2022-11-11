@@ -32,7 +32,7 @@ class AddFileCommand(private val quads: MutableQuadSet, private val objectStore:
             return
         }
 
-        val id = AddFileUtil.addFile(objectStore, quads, PseudoFile(file)).id
+        val id = AddFileUtil.addFile(objectStore, quads, PseudoFile(file)).uri
 
         println("Added file '${file.absolutePath}' with id '${id}'")
 

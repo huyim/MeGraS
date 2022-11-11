@@ -1,9 +1,8 @@
 package org.megras.data.schema
 
-import org.megras.data.HasString
+import org.megras.data.graph.URIValue
 
-enum class MeGraS(private val suffix: String) : HasString {
-
+enum class MeGraS(suffix: String) {
 
     RAW_ID("rawId"),
     MEDIA_TYPE("mediaType"),
@@ -11,15 +10,13 @@ enum class MeGraS(private val suffix: String) : HasString {
     CANONICAL_ID("canonicalId"), //raw id of canonical representation
     FILE_NAME("fileName"),
     SEGMENT_OF("segmentOf")
-
-
     ;
-
-    override val string: String
-    get() = "${prefix}${suffix}"
 
     companion object {
         private const val prefix = "http://megras.org/schema#"
     }
+
+    val uri = URIValue(MeGraS.prefix, suffix)
+
 
 }

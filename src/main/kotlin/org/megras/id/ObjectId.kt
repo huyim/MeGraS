@@ -1,12 +1,11 @@
 package org.megras.id
 
-import org.megras.data.HasString
+import org.megras.data.graph.LocalQuadValue
 
-@JvmInline
-value class ObjectId(val id: String) : HasString {
+//class ObjectId(id: String) : LocalQuadValue(id) {
+//    val id: String
+//        get() = uri
+//
+//}
 
-    override val string: String
-        get() = id
-
-    override fun toString(): String = this.id
-}
+typealias ObjectId = LocalQuadValue

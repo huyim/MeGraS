@@ -17,7 +17,7 @@ class CottontailStore {
 
         client.create(CreateSchema("megras"))
 
-        client.create(CreateEntity("triples")
+        client.create(CreateEntity("quads")
             .column("id", Type.LONG, autoIncrement = true)
             .column("s_type", Type.INTEGER)
             .column("s", Type.LONG)

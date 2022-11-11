@@ -3,6 +3,7 @@ package org.megras.graphstore
 import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
 import com.github.doyaaaaaken.kotlincsv.dsl.csvWriter
 import org.megras.data.graph.Quad
+import org.megras.data.graph.QuadValue
 import java.io.File
 
 class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
@@ -33,9 +34,9 @@ class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
         tsvReader.readAllWithHeader(tsvFile).map {
             cache.add(
                 Quad(
-                    it["subject"]!!,
-                    it["predicate"]!!,
-                    it["object"]!!
+                    QuadValue.of(it["subject"]!!),
+                    QuadValue.of(it["predicate"]!!),
+                    QuadValue.of(it["object"]!!)
                 )
             )
         }
@@ -45,10 +46,10 @@ class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
     private var lastStoreTime = 0L
 
     @Synchronized
-    fun store() {
+    fun store(force: Boolean = false) {
 
         //rate limit writes
-        if ((System.currentTimeMillis() - lastStoreTime) < 60_000) {
+        if (!force && (System.currentTimeMillis() - lastStoreTime) < 60_000) {
             return
         }
 
@@ -63,18 +64,18 @@ class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
 
     }
 
-    override fun getId(id: String): Quad? = cache.getId(id)
+    override fun getId(id: Long): Quad? = cache.getId(id)
 
-    override fun filterSubject(subject: String): QuadSet = cache.filterSubject(subject)
+    override fun filterSubject(subject: QuadValue): QuadSet = cache.filterSubject(subject)
 
-    override fun filterPredicate(predicate: String): QuadSet = cache.filterPredicate(predicate)
+    override fun filterPredicate(predicate: QuadValue): QuadSet = cache.filterPredicate(predicate)
 
-    override fun filterObject(`object`: String): QuadSet = cache.filterObject(`object`)
+    override fun filterObject(`object`: QuadValue): QuadSet = cache.filterObject(`object`)
 
     override fun filter(
-        subjects: Collection<String>?,
-        predicates: Collection<String>?,
-        objects: Collection<String>?
+        subjects: Collection<QuadValue>?,
+        predicates: Collection<QuadValue>?,
+        objects: Collection<QuadValue>?
     ): QuadSet = cache.filter(
         subjects, predicates, objects
     )
@@ -133,7 +134,7 @@ class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
     }
 
     override fun removeAll(elements: Collection<Quad>): Boolean {
-        val result = cache.removeAll(elements)
+        val result = cache.removeAll(elements.toSet())
 
         if (result) {
             store()
@@ -143,7 +144,7 @@ class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
     }
 
     override fun retainAll(elements: Collection<Quad>): Boolean {
-        val result = cache.retainAll(elements)
+        val result = cache.retainAll(elements.toSet())
 
         if (result) {
             store()

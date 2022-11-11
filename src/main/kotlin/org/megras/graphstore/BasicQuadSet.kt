@@ -1,23 +1,24 @@
 package org.megras.graphstore
 
 import org.megras.data.graph.Quad
+import org.megras.data.graph.QuadValue
 
 open class BasicQuadSet(private val quads: Set<Quad>) : QuadSet, Set<Quad> by quads {
 
     constructor() : this(setOf())
 
-    override fun getId(id: String): Quad? = quads.find { it.id == id }
+    override fun getId(id: Long): Quad? = quads.find { it.id == id }
 
-    override fun filterSubject(subject: String): QuadSet = BasicQuadSet(quads.filter { it.subject == subject }.toSet())
+    override fun filterSubject(subject: QuadValue): QuadSet = BasicQuadSet(quads.filter { it.subject == subject }.toSet())
 
-    override fun filterPredicate(predicate: String): QuadSet = BasicQuadSet(quads.filter { it.predicate == predicate }.toSet())
+    override fun filterPredicate(predicate: QuadValue): QuadSet = BasicQuadSet(quads.filter { it.predicate == predicate }.toSet())
 
-    override fun filterObject(`object`: String): QuadSet = BasicQuadSet(quads.filter { it.`object` == `object` }.toSet())
+    override fun filterObject(`object`: QuadValue): QuadSet = BasicQuadSet(quads.filter { it.`object` == `object` }.toSet())
 
     override fun filter(
-        subjects: Collection<String>?,
-        predicates: Collection<String>?,
-        objects: Collection<String>?
+        subjects: Collection<QuadValue>?,
+        predicates: Collection<QuadValue>?,
+        objects: Collection<QuadValue>?
     ): QuadSet {
         //if all attributes are unfiltered, do not filter
         if (subjects == null && predicates == null && objects == null) {

@@ -1,18 +1,16 @@
 package org.megras.data.schema
 
-import org.megras.data.HasString
+import org.megras.data.graph.URIValue
 
-enum class SchemaOrg(private val suffix: String): HasString {
+enum class SchemaOrg(private val suffix: String) {
 
     SAME_AS("sameAs")
 
     ;
-
-    override val string: String
-        get() = "${prefix}${suffix}"
-
     companion object {
         private const val prefix = "http://schema.org/"
     }
+
+    val uri = URIValue(SchemaOrg.prefix, suffix)
 
 }

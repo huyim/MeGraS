@@ -5,9 +5,11 @@ import io.javalin.http.Context
 import org.megras.api.rest.GetRequestHandler
 import org.megras.api.rest.RestErrorStatus
 import org.megras.data.fs.FileSystemObjectStore
+import org.megras.data.graph.StringValue
 import org.megras.data.model.MediaType
 import org.megras.data.schema.MeGraS
 import org.megras.graphstore.QuadSet
+import org.megras.id.ObjectId
 
 class AboutObjectRequestHandler(private val quads: QuadSet, private val objectStore: FileSystemObjectStore) : GetRequestHandler {
 
@@ -15,7 +17,7 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
 
     override fun get(ctx: Context) {
 
-        val objectId = ctx.pathParam("objectId")
+        val objectId = ObjectId(ctx.pathParam("objectId"))
 
         val relevant = quads.filter(setOf(objectId), null,null) + quads.filter(null, null, setOf(objectId))
 
@@ -34,9 +36,9 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
           """.trimIndent()
         )
 
-        val type = quads.filterPredicate(MeGraS.MEDIA_TYPE.string).firstOrNull()?.`object`
+        val type = quads.filterPredicate(MeGraS.MEDIA_TYPE.uri).firstOrNull()?.`object` as? StringValue
 
-        when(type) {
+        when(type?.value) {
             MediaType.IMAGE.name -> {
                 buf.append("<img src='$basePath/$objectId' />")
             }
