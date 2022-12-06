@@ -1,5 +1,8 @@
 package org.megras.data.graph
 
+import java.net.URI
+import java.net.URISyntaxException
+
 sealed class QuadValue {
 
     companion object {
@@ -98,9 +101,17 @@ open class URIValue(private val prefix: String?, protected open val uri: String)
                 uri
             }
 
-            //TODO best effort prefix estimator
+            //best effort prefix estimator
+            return try {
+                val parsedUri = URI(uri)
+                val host = parsedUri.host ?: ""
+                val suffix = uri.substringAfter(host)
+                val prefix = uri.substringBefore(suffix)
+                prefix to suffix
+            }catch (e: URISyntaxException) {
+                "" to cleaned
+            }
 
-            return "" to cleaned
         }
     }
 
@@ -118,6 +129,9 @@ open class URIValue(private val prefix: String?, protected open val uri: String)
     }
 
     override fun hashCode(): Int = toString().hashCode()
+
+    fun prefix(): String = prefix ?: ""
+    fun suffix(): String = uri
 
 }
 
