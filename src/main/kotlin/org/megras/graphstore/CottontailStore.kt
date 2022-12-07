@@ -15,18 +15,18 @@ import org.vitrivr.cottontail.grpc.CottontailGrpc
 import java.lang.IllegalStateException
 
 
-class CottontailStore(host: String = "localhost", port: Int = 1865) {
+class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQuadSet {
 
-    //TODO make configurable
     private val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
 
     private val client = SimpleClient(channel)
 
 
     private companion object {
-        const val LONG_LITERAL_TYPE = -1
-        const val DOUBLE_LITERAL_TYPE = -2
-        const val STRING_LITERAL_TYPE = -3
+        const val LOCAL_URI_TYPE = -1
+        const val LONG_LITERAL_TYPE = -2
+        const val DOUBLE_LITERAL_TYPE = -3
+        const val STRING_LITERAL_TYPE = -4
         const val BINARY_DATA_TYPE = 0
     }
 
@@ -121,6 +121,94 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) {
             is URIValue -> getOrAddUriValueId(quadValue)
         }
 
+    }
+
+    private fun getQuadValue(type: Int, id: Long): QuadValue? {
+
+        return when (type) {
+            DOUBLE_LITERAL_TYPE -> getDoubleValue(id)
+            LONG_LITERAL_TYPE -> LongValue(id)
+            STRING_LITERAL_TYPE -> getStringValue(id)
+            else -> getUriValue(type, id)
+        }
+
+    }
+
+    private fun getDoubleValue(id: Long): DoubleValue? {
+        val result = client.query(
+            Query("megras.literal_double")
+                .select("value")
+                .where(Expression("id", "=", id))
+        )
+
+        if (result.hasNext()) {
+            val value = result.next().asDouble("value")
+            if (value != null) {
+                return DoubleValue(value)
+            }
+        }
+
+        return null
+    }
+
+    private fun getStringValue(id: Long): StringValue? {
+        val result = client.query(
+            Query("megras.literal_string")
+                .select("value")
+                .where(Expression("id", "=", id))
+        )
+
+        if (result.hasNext()) {
+            val value = result.next().asString("value")
+            if (value != null) {
+                return StringValue(value)
+            }
+        }
+
+        return null
+    }
+
+    private fun getUriValue(type: Int, id: Long): URIValue? {
+
+        fun prefix(id: Int): String? {
+            val result = client.query(
+                Query("megras.entity_prefix").select("prefix").where(
+                    Expression("id", "=", id)
+                )
+            )
+
+            if (result.hasNext()) {
+                val tuple = result.next()
+                return tuple.asString("prefix")
+            }
+
+            return null
+        }
+
+        fun suffix(id: Long): String? {
+            val result = client.query(
+                Query("megras.entity").select("value").where(
+                    Expression("id", "=", id)
+                )
+            )
+
+            if (result.hasNext()) {
+                val tuple = result.next()
+                return tuple.asString("value")
+            }
+
+            return null
+        }
+
+        if (type == LOCAL_URI_TYPE) {
+            val suffix = suffix(id) ?: return null
+            return LocalQuadValue(suffix)
+        }
+
+        val prefix = prefix(type) ?: return null
+        val suffix = suffix(id) ?: return null
+
+        return URIValue(prefix, suffix)
     }
 
     private fun getDoubleLiteralId(value: Double): Long? {
@@ -225,6 +313,10 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) {
             return null
         }
 
+        if (value is LocalQuadValue || value.prefix() == LocalQuadValue.defaultPrefix) {
+            return LOCAL_URI_TYPE to suffix(value.suffix())
+        }
+
         return prefix(value.prefix()) to suffix(value.suffix())
 
     }
@@ -314,6 +406,116 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) {
 
         return getQuadId(s, p, o) ?: throw IllegalStateException("could not obtain id for inserted value")
 
+    }
+
+    override fun getId(id: Long): Quad? {
+
+        val result = client.query(
+            Query("megras.quads")
+                .select("*")
+                .where(Expression("id", "=", id))
+        )
+
+        if (!result.hasNext()) {
+            return null
+        }
+
+        val tuple = result.next()
+
+        val s = getQuadValue(tuple.asInt("s_type")!!, tuple.asLong("s")!!) ?: return null
+        val p = getQuadValue(tuple.asInt("p_type")!!, tuple.asLong("p")!!) ?: return null
+        val o = getQuadValue(tuple.asInt("o_type")!!, tuple.asLong("o")!!) ?: return null
+
+        return Quad(id, s, p, o)
+    }
+
+    override fun filterSubject(subject: QuadValue): QuadSet {
+        TODO("Not yet implemented")
+    }
+
+    override fun filterPredicate(predicate: QuadValue): QuadSet {
+        TODO("Not yet implemented")
+    }
+
+    override fun filterObject(`object`: QuadValue): QuadSet {
+        TODO("Not yet implemented")
+    }
+
+    override fun filter(
+        subjects: Collection<QuadValue>?,
+        predicates: Collection<QuadValue>?,
+        objects: Collection<QuadValue>?
+    ): QuadSet {
+        TODO("Not yet implemented")
+    }
+
+    override fun toMutable(): MutableQuadSet = this
+
+    override fun toSet(): Set<Quad> {
+        TODO("Not yet implemented")
+    }
+
+    override fun plus(other: QuadSet): QuadSet {
+        TODO("Not yet implemented")
+    }
+
+    override val size: Int
+        get() = TODO("Not yet implemented")
+
+    override fun contains(element: Quad): Boolean {
+        val s = getQuadValueId(element.subject)
+
+        if (s.first == null || s.second == null) {
+            return false
+        }
+
+        val p = getQuadValueId(element.predicate)
+
+        if (p.first == null || p.second == null) {
+            return false
+        }
+
+        val o = getQuadValueId(element.`object`)
+
+        if (o.first == null || o.second == null) {
+            return false
+        }
+
+        return getQuadId(s.first!! to s.second!!, p.first!! to p.second!!, o.first!! to o.second!!) != null
+    }
+
+    override fun containsAll(elements: Collection<Quad>): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun isEmpty(): Boolean = this.size == 0
+
+    override fun iterator(): MutableIterator<Quad> {
+        TODO("Not yet implemented")
+    }
+
+    override fun add(element: Quad): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun addAll(elements: Collection<Quad>): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun clear() {
+        TODO("Not yet implemented")
+    }
+
+    override fun remove(element: Quad): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun removeAll(elements: Collection<Quad>): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun retainAll(elements: Collection<Quad>): Boolean {
+        TODO("Not yet implemented")
     }
 
 }

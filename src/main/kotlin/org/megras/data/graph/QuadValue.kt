@@ -130,8 +130,8 @@ open class URIValue(private val prefix: String?, protected open val uri: String)
 
     override fun hashCode(): Int = toString().hashCode()
 
-    fun prefix(): String = prefix ?: ""
-    fun suffix(): String = uri
+    open fun prefix(): String = prefix ?: ""
+    open fun suffix(): String = uri
 
 }
 

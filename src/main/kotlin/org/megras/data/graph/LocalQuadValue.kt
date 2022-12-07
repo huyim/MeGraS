@@ -18,6 +18,9 @@ open class LocalQuadValue(public override val uri: String, infix: String = "") :
     }
 
 
+    override fun prefix() = defaultPrefix
+    override fun suffix() = uri
+
     override fun toString() = "<${defaultPrefix}${uri}>"
 
     override fun equals(other: Any?): Boolean {
