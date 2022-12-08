@@ -1,11 +1,15 @@
 package org.megras.graphstore
 
 import io.grpc.ManagedChannelBuilder
+import io.grpc.StatusRuntimeException
+import kotlinx.serialization.descriptors.mapSerialDescriptor
 import org.megras.data.graph.*
 import org.vitrivr.cottontail.client.SimpleClient
 import org.vitrivr.cottontail.client.language.basics.Type
 import org.vitrivr.cottontail.client.language.basics.predicate.And
 import org.vitrivr.cottontail.client.language.basics.predicate.Expression
+import org.vitrivr.cottontail.client.language.basics.predicate.Or
+import org.vitrivr.cottontail.client.language.basics.predicate.Predicate
 import org.vitrivr.cottontail.client.language.ddl.CreateEntity
 import org.vitrivr.cottontail.client.language.ddl.CreateIndex
 import org.vitrivr.cottontail.client.language.ddl.CreateSchema
@@ -32,71 +36,88 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
     fun setup() {
 
-        //TODO check if exists before create
+        fun catchExists(lambda: () -> Unit) {
+            try {
+                lambda()
+            } catch (e: StatusRuntimeException) {
+                if (e.message?.contains("ALREADY_EXISTS") == false) {
+                    throw e
+                }
+            }
+        }
 
-        client.create(CreateSchema("megras"))
+        catchExists { client.create(CreateSchema("megras")) }
 
-        client.create(
-            CreateEntity("megras.quads")
-                .column("id", Type.LONG, autoIncrement = true)
-                .column("s_type", Type.INTEGER)
-                .column("s", Type.LONG)
-                .column("p_type", Type.INTEGER)
-                .column("p", Type.LONG)
-                .column("o_type", Type.INTEGER)
-                .column("o", Type.LONG)
-        )
+        catchExists {
+            client.create(
+                CreateEntity("megras.quads")
+                    .column("id", Type.LONG, autoIncrement = true)
+                    .column("s_type", Type.INTEGER)
+                    .column("s", Type.LONG)
+                    .column("p_type", Type.INTEGER)
+                    .column("p", Type.LONG)
+                    .column("o_type", Type.INTEGER)
+                    .column("o", Type.LONG)
+            )
+        }
 
-        client.create(CreateIndex("megras.quads", "id", CottontailGrpc.IndexType.BTREE_UQ))
-        client.create(CreateIndex("megras.quads", "s_type", CottontailGrpc.IndexType.BTREE))
-        client.create(CreateIndex("megras.quads", "s", CottontailGrpc.IndexType.BTREE))
-        client.create(CreateIndex("megras.quads", "p_type", CottontailGrpc.IndexType.BTREE))
-        client.create(CreateIndex("megras.quads", "p", CottontailGrpc.IndexType.BTREE))
-        client.create(CreateIndex("megras.quads", "o_type", CottontailGrpc.IndexType.BTREE))
-        client.create(CreateIndex("megras.quads", "o", CottontailGrpc.IndexType.BTREE))
+        catchExists { client.create(CreateIndex("megras.quads", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists { client.create(CreateIndex("megras.quads", "s_type", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.quads", "s", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.quads", "p_type", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.quads", "p", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.quads", "o_type", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.quads", "o", CottontailGrpc.IndexType.BTREE)) }
 
-        client.create(
-            CreateEntity("megras.literal_string")
-                .column("id", Type.LONG, autoIncrement = true)
-                .column("value", Type.STRING)
-        )
+        catchExists {
+            client.create(
+                CreateEntity("megras.literal_string")
+                    .column("id", Type.LONG, autoIncrement = true)
+                    .column("value", Type.STRING)
+            )
+        }
 
-        client.create(CreateIndex("megras.literal_string", "id", CottontailGrpc.IndexType.BTREE_UQ))
-        client.create(CreateIndex("megras.literal_string", "value", CottontailGrpc.IndexType.BTREE))
+        catchExists{ client.create(CreateIndex("megras.literal_string", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists{ client.create(CreateIndex("megras.literal_string", "value", CottontailGrpc.IndexType.BTREE)) }
 
-        client.create(
-            CreateEntity("megras.literal_double")
-                .column("id", Type.LONG, autoIncrement = true)
-                .column("value", Type.DOUBLE)
-        )
+        catchExists{
+            client.create(
+                CreateEntity("megras.literal_double")
+                    .column("id", Type.LONG, autoIncrement = true)
+                    .column("value", Type.DOUBLE)
+            )
+        }
 
-        client.create(CreateIndex("megras.literal_double", "id", CottontailGrpc.IndexType.BTREE_UQ))
-        client.create(CreateIndex("megras.literal_double", "value", CottontailGrpc.IndexType.BTREE))
+        catchExists{ client.create(CreateIndex("megras.literal_double", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists{ client.create(CreateIndex("megras.literal_double", "value", CottontailGrpc.IndexType.BTREE)) }
 
-        client.create(
-            CreateEntity("megras.entity_prefix")
-                .column("id", Type.INTEGER, autoIncrement = true)
-                .column("prefix", Type.STRING)
-        )
+        catchExists{
+            client.create(
+                CreateEntity("megras.entity_prefix")
+                    .column("id", Type.INTEGER, autoIncrement = true)
+                    .column("prefix", Type.STRING)
+            )
+        }
 
-        client.create(CreateIndex("megras.entity_prefix", "id", CottontailGrpc.IndexType.BTREE_UQ))
-        client.create(CreateIndex("megras.entity_prefix", "prefix", CottontailGrpc.IndexType.BTREE))
+        catchExists{ client.create(CreateIndex("megras.entity_prefix", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists{ client.create(CreateIndex("megras.entity_prefix", "prefix", CottontailGrpc.IndexType.BTREE)) }
 
-        client.create(
-            CreateEntity("megras.entity")
-                .column("id", Type.LONG, autoIncrement = true)
+        catchExists{
+            client.create(
+                CreateEntity("megras.entity")
+                    .column("id", Type.LONG, autoIncrement = true)
 //                .column("prefix", Type.INTEGER)
-                .column("value", Type.STRING)
-        )
+                    .column("value", Type.STRING)
+            )
+        }
 
-        client.create(CreateIndex("megras.entity", "id", CottontailGrpc.IndexType.BTREE_UQ))
-        client.create(CreateIndex("megras.entity", "value", CottontailGrpc.IndexType.BTREE))
+        catchExists{ client.create(CreateIndex("megras.entity", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists{ client.create(CreateIndex("megras.entity", "value", CottontailGrpc.IndexType.BTREE)) }
 
 //        client.create(CreateEntity("type_map")
 //            .column("id", Type.INTEGER, autoIncrement = true)
 //            .column("type", Type.STRING)
 //        )
-
 
 
     }
@@ -351,6 +372,15 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
     }
 
+    private fun filterExpression(column: String, type: Int, id: Long) = And(
+        Expression("${column}_type", "=", type),
+        Expression(column, "=", id)
+    )
+
+    private fun subjectFilterExpression(type: Int, id: Long) = filterExpression("s", type, id)
+    private fun predicateFilterExpression(type: Int, id: Long) = filterExpression("p", type, id)
+    private fun objectFilterExpression(type: Int, id: Long) = filterExpression("o", type, id)
+
     private fun getQuadId(subject: Pair<Int, Long>, predicate: Pair<Int, Long>, `object`: Pair<Int, Long>): Long? {
         val result = client.query(
             Query("megras.quads")
@@ -358,19 +388,10 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
                 .where(
                     And(
                         And(
-                            And(
-                                Expression("s_type", "=", subject.first),
-                                Expression("s", "=", subject.second)
-                            ),
-                            And(
-                                Expression("p_type", "=", predicate.first),
-                                Expression("p", "=", predicate.second)
-                            )
+                            subjectFilterExpression(subject.first, subject.second),
+                            predicateFilterExpression(predicate.first, predicate.second)
                         ),
-                        And(
-                            Expression("o_type", "=", `object`.first),
-                            Expression("o", "=", `object`.second)
-                        )
+                        objectFilterExpression(`object`.first, `object`.second)
                     )
                 )
         )
@@ -378,6 +399,18 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             return result.next().asLong("id")
         }
         return null
+    }
+
+    private fun insert(sType: Int, s: Long, pType: Int, p: Long, oType: Int, o: Long) {
+        client.insert(
+            Insert("megras.quads")
+                .value("s_type", sType)
+                .value("s", s)
+                .value("p_type", pType)
+                .value("p", p)
+                .value("o_type", oType)
+                .value("o", o)
+        )
     }
 
     /**
@@ -395,14 +428,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             return existingId
         }
 
-        client.insert(Insert("megras.quads")
-            .value("s_type", s.first)
-            .value("s", s.second)
-            .value("p_type", p.first)
-            .value("p", p.second)
-            .value("o_type", o.first)
-            .value("o", o.second)
-        )
+        insert(s.first, s.second, p.first, p.second, o.first, o.second)
 
         return getQuadId(s, p, o) ?: throw IllegalStateException("could not obtain id for inserted value")
 
@@ -429,16 +455,81 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         return Quad(id, s, p, o)
     }
 
+
     override fun filterSubject(subject: QuadValue): QuadSet {
-        TODO("Not yet implemented")
+
+        val s = getQuadValueId(subject)
+
+        if (s.first == null || s.second == null) { //no match, no results
+            return BasicQuadSet() //return empty set
+        }
+
+        val result = client.query(
+            Query("megras.quads")
+                .select("id")
+                .where(
+                    subjectFilterExpression(s.first!!, s.second!!)
+                )
+        )
+
+        val quadSet = BasicMutableQuadSet()
+        while (result.hasNext()) {
+            val id = result.next().asLong("id") ?: continue
+            val quad = getId(id) ?: continue
+            quadSet.add(quad)
+        }
+
+        return quadSet
     }
 
     override fun filterPredicate(predicate: QuadValue): QuadSet {
-        TODO("Not yet implemented")
+        val p = getQuadValueId(predicate)
+
+        if (p.first == null || p.second == null) { //no match, no results
+            return BasicQuadSet() //return empty set
+        }
+
+        val result = client.query(
+            Query("megras.quads")
+                .select("id")
+                .where(
+                    predicateFilterExpression(p.first!!, p.second!!)
+                )
+        )
+
+        val quadSet = BasicMutableQuadSet()
+        while (result.hasNext()) {
+            val id = result.next().asLong("id") ?: continue
+            val quad = getId(id) ?: continue
+            quadSet.add(quad)
+        }
+
+        return quadSet
     }
 
     override fun filterObject(`object`: QuadValue): QuadSet {
-        TODO("Not yet implemented")
+        val o = getQuadValueId(`object`)
+
+        if (o.first == null || o.second == null) { //no match, no results
+            return BasicQuadSet() //return empty set
+        }
+
+        val result = client.query(
+            Query("megras.quads")
+                .select("id")
+                .where(
+                    objectFilterExpression(o.first!!, o.second!!)
+                )
+        )
+
+        val quadSet = BasicMutableQuadSet()
+        while (result.hasNext()) {
+            val id = result.next().asLong("id") ?: continue
+            val quad = getId(id) ?: continue
+            quadSet.add(quad)
+        }
+
+        return quadSet
     }
 
     override fun filter(
@@ -446,7 +537,77 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         predicates: Collection<QuadValue>?,
         objects: Collection<QuadValue>?
     ): QuadSet {
-        TODO("Not yet implemented")
+
+        //if all attributes are unfiltered, do not filter
+        if (subjects == null && predicates == null && objects == null) {
+            return this
+        }
+
+        //if one attribute has no matches, return empty set
+        if (subjects?.isEmpty() == true || predicates?.isEmpty() == true || objects?.isEmpty() == true) {
+            return BasicQuadSet()
+        }
+
+        val filterIds =
+            ((subjects?.toSet() ?: setOf()) + (predicates?.toSet() ?: setOf()) + (objects?.toSet() ?: setOf()))
+                .map { it to getQuadValueId(it) }
+                .mapNotNull { if (it.second.first == null || it.second.second == null) null else it.first to (it.second.first!! to it.second.second!!) } //remove values that were not found
+                .toMap()
+
+        val subjectFilterIds = subjects?.mapNotNull { filterIds[it] }
+        val predicateFilterIds = predicates?.mapNotNull { filterIds[it] }
+        val objectFilterIds = objects?.mapNotNull { filterIds[it] }
+
+        //no matching values
+        if (subjectFilterIds?.isEmpty() == true || predicateFilterIds?.isEmpty() == true || objectFilterIds?.isEmpty() == true) {
+            return BasicQuadSet()
+        }
+
+        fun select(predicates: Collection<Predicate>): Set<Long> {
+            if (predicates.isEmpty()) {
+                return emptySet()
+            }
+
+            val predicate = predicates.reduce { acc, predicate -> Or(acc, predicate) }
+
+            val result = client.query(
+                Query("megras.quads")
+                    .select("id")
+                    .where(predicate)
+            )
+
+            val ids = mutableSetOf<Long>()
+
+            while (result.hasNext()) {
+                val id = result.next().asLong("id") ?: continue
+                ids.add(id)
+            }
+
+            return ids
+
+        }
+
+        var selectedIds: Set<Long>? = null
+
+        if (subjectFilterIds != null) {
+            selectedIds = select(subjectFilterIds.map { subjectFilterExpression(it.first, it.second) })
+        }
+
+        if (predicateFilterIds != null) {
+            val ids = select(predicateFilterIds.map { predicateFilterExpression(it.first, it.second) })
+            selectedIds = selectedIds?.intersect(ids) ?: ids
+        }
+
+        if (objectFilterIds != null) {
+            val ids = select(objectFilterIds.map { objectFilterExpression(it.first, it.second) })
+            selectedIds = selectedIds?.intersect(ids) ?: ids
+        }
+
+        if (selectedIds.isNullOrEmpty()) { //should never be null
+            return BasicQuadSet()
+        }
+
+        return BasicMutableQuadSet(selectedIds.mapNotNull { getId(it) }.toMutableSet())
     }
 
     override fun toMutable(): MutableQuadSet = this
@@ -485,7 +646,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     override fun containsAll(elements: Collection<Quad>): Boolean {
-        TODO("Not yet implemented")
+        return elements.all { contains(it) }
     }
 
     override fun isEmpty(): Boolean = this.size == 0
@@ -495,11 +656,24 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     override fun add(element: Quad): Boolean {
-        TODO("Not yet implemented")
+
+        val s = getOrAddQuadValueId(element.subject)
+        val p = getOrAddQuadValueId(element.predicate)
+        val o = getOrAddQuadValueId(element.`object`)
+
+        val existingId = getQuadId(s, p, o)
+
+        if (existingId != null) {
+            return false
+        }
+
+        insert(s.first, s.second, p.first, p.second, o.first, o.second)
+
+        return true
     }
 
     override fun addAll(elements: Collection<Quad>): Boolean {
-        TODO("Not yet implemented")
+        return elements.map { add(it) }.any()
     }
 
     override fun clear() {
@@ -511,7 +685,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     override fun removeAll(elements: Collection<Quad>): Boolean {
-        TODO("Not yet implemented")
+        return elements.map { remove(it) }.any()
     }
 
     override fun retainAll(elements: Collection<Quad>): Boolean {
