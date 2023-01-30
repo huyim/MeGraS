@@ -7,15 +7,18 @@ sealed class QuadValue {
 
     companion object {
 
-        fun of(value: Any) = when {
-            value is Number -> {
+        fun of(value: Any) = when (value) {
+            is Number -> {
                 if (value is Float || value is Double) {
                     of(value.toDouble())
                 } else {
                     of(value.toLong())
                 }
             }
-            value is String -> of(value)
+
+            is String -> of(value)
+            is DoubleArray -> of(value)
+            is LongArray -> of(value)
             else -> of(value.toString())
         }
 
@@ -28,11 +31,17 @@ sealed class QuadValue {
             value.endsWith("^^String") -> StringValue(value.substringBeforeLast("^^String"))
             value.endsWith("^^Long") -> LongValue(value.substringAfterLast("^^Long").toLongOrNull() ?: 0L)
             value.endsWith("^^Double") -> DoubleValue(value.substringAfterLast("^^Double").toDoubleOrNull() ?: Double.NaN)
+            //TODO parse vectors
             else -> StringValue(value)
         }
         fun of(value: Long) = LongValue(value)
         fun of(value: Double) = DoubleValue(value)
         fun of(prefix: String, uri: String) = URIValue(prefix, uri)
+        fun of(value: DoubleArray) = DoubleVectorValue(value)
+        fun of(value: List<Double>) = DoubleVectorValue(value)
+        fun of(value: LongArray) = LongVectorValue(value)
+        fun of(value: List<Long>) = LongVectorValue(value)
+
 
     }
 
@@ -135,3 +144,53 @@ open class URIValue(private val prefix: String?, protected open val uri: String)
 
 }
 
+open class VectorValue(val type: Type, val length: Int) : QuadValue() {
+
+    enum class Type {
+        Double, Long
+    }
+
+}
+
+class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vector.size) {
+    constructor(values: List<Double>) : this(values.toDoubleArray())
+    constructor(values: List<Float>) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
+    constructor(values: FloatArray) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as DoubleVectorValue
+
+        if (!vector.contentEquals(other.vector)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return vector.contentHashCode()
+    }
+}
+
+class LongVectorValue(val vector: LongArray) : VectorValue(Type.Long, vector.size) {
+
+    constructor(values: List<Long>) : this(values.toLongArray())
+    constructor(values: List<Int>) : this(LongArray(values.size) { i -> values[i].toLong() })
+    constructor(values: IntArray) : this(LongArray(values.size) { i -> values[i].toLong() })
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as LongVectorValue
+
+        if (!vector.contentEquals(other.vector)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return vector.contentHashCode()
+    }
+}
