@@ -154,8 +154,8 @@ open class VectorValue(val type: Type, val length: Int) : QuadValue() {
 
 class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vector.size) {
     constructor(values: List<Double>) : this(values.toDoubleArray())
-    constructor(values: List<Float>) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
-    constructor(values: FloatArray) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
+//    constructor(values: List<Float>) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
+//    constructor(values: FloatArray) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -176,8 +176,8 @@ class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vect
 class LongVectorValue(val vector: LongArray) : VectorValue(Type.Long, vector.size) {
 
     constructor(values: List<Long>) : this(values.toLongArray())
-    constructor(values: List<Int>) : this(LongArray(values.size) { i -> values[i].toLong() })
-    constructor(values: IntArray) : this(LongArray(values.size) { i -> values[i].toLong() })
+//    constructor(values: List<Int>) : this(LongArray(values.size) { i -> values[i].toLong() })
+//    constructor(values: IntArray) : this(LongArray(values.size) { i -> values[i].toLong() })
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

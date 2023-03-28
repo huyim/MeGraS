@@ -16,7 +16,7 @@ repositories {
 
 dependencies {
 
-    def javalinVersion = '5.1.1'
+    def javalinVersion = '5.4.2'
     def log4jVersion = '2.17.1'
     def jlineVersion = '3.21.0'
     def jacksonVersion = '2.13.1'
@@ -37,6 +37,7 @@ dependencies {
     implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: log4jVersion
     implementation group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: log4jVersion
     implementation group: 'org.apache.logging.log4j', name: 'log4j-jul', version: log4jVersion
+    implementation group: 'org.slf4j', name: 'slf4j-simple', version: '2.0.6'
 
     /* Apache commons */
     implementation group: 'commons-codec', name: 'commons-codec', version: '1.15'
@@ -57,6 +58,13 @@ dependencies {
     implementation group: 'com.sksamuel.scrimage', name: 'scrimage-core', version: scrimageVersion
     implementation group: 'com.sksamuel.scrimage', name: 'scrimage-formats-extra', version: scrimageVersion
     implementation group: 'com.sksamuel.scrimage', name: 'scrimage-webp', version: scrimageVersion
+
+    implementation group: 'org.apache.xmlgraphics', name: 'batik-parser', version: '1.16'
+    implementation group: 'org.apache.xmlgraphics', name: 'batik-ext', version: '1.16'
+
+    implementation group: 'org.apache.pdfbox', name: 'pdfbox', version: '2.0.27'
+
+    implementation group: 'org.tinyspline', name: 'tinyspline', version: '0.6.0-1'
 
     /* CSV */
     implementation group: 'com.github.doyaaaaaken', name: 'kotlin-csv-jvm', version: '1.2.0'
