@@ -29,10 +29,19 @@ enum class MimeType(val mimeString: String) {
     MPEG_A("audio/mpeg"),
     MIDI("audio/midi"),
     MP4_A("audio/mp4"),
-    OGG("audio/ogg"),
+    OGG_A("audio/ogg"),
     WAV("audio/x-wav"),
     WAX("audio/x-ms-wax"),
-    WMA("audio/x-ms-wma");
+    WMA("audio/x-ms-wma"),
+
+    //video
+    MOV("video/quicktime"),
+    MP4("video/mp4"),
+    OGG("video/ogg"),
+    WEBM("video/webm"),
+    AVI("video/avi"),
+
+    PDF("application/pdf");
 
     companion object {
         val extensionMap = mapOf(
@@ -75,12 +84,22 @@ enum class MimeType(val mimeString: String) {
             "midi" to MIDI,
             "rmi" to MIDI,
             "mp4a" to MP4_A,
-            "oga" to OGG,
-            "ogg" to OGG,
-            "spx" to OGG,
+            "oga" to OGG_A,
+            "ogg" to OGG_A,
+            "spx" to OGG_A,
             "wav" to WAV,
             "wax" to WAX,
-            "wma" to WMA
+            "wma" to WMA,
+
+            "mov" to MOV,
+            "mp4" to MP4,
+            "m4v" to MP4,
+            "avi" to AVI,
+            "ogv" to OGG,
+            "ogx" to OGG,
+            "webm" to WEBM,
+
+            "pdf" to PDF
 
         )
 

@@ -20,9 +20,19 @@ object SegmentationUtil {
                         second.toRect() == first
                     }
                     SegmentationType.RECT -> false
+                    SegmentationType.PATH -> TODO()
+                    SegmentationType.SPLINE -> TODO()
+                    SegmentationType.MASK -> TODO()
+                    SegmentationType.CHANNEL -> TODO()
+                    SegmentationType.TIME -> TODO()
                 }
             }
             SegmentationType.POLYGON -> TODO()
+            SegmentationType.PATH -> TODO()
+            SegmentationType.SPLINE -> TODO()
+            SegmentationType.MASK -> TODO()
+            SegmentationType.CHANNEL -> TODO()
+            SegmentationType.TIME -> TODO()
         }
 
 
@@ -74,6 +84,73 @@ object SegmentationUtil {
 
             if (finalPoints.size == points.size) {
                 Polygon(finalPoints)
+            } else {
+                null
+            }
+        }
+
+        SegmentationType.SPLINE -> {
+
+            val points = definition.split("),").map { chunk ->
+                val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
+                if (coords.any { it == null }) {
+                    null
+                } else if (coords.size < 2) {
+                    null
+                } else {
+                    coords[0]!! to coords[1]!!
+                }
+            }
+
+            val finalPoints = points.filterNotNull()
+
+            if (finalPoints.size == points.size) {
+                Spline(finalPoints)
+            } else {
+                null
+            }
+        }
+
+        SegmentationType.PATH -> {
+            Path(definition)
+        }
+
+        SegmentationType.MASK -> {
+
+            var binaryString = ""
+            if (definition.matches(Regex("^[01]+$"))) {
+                binaryString = definition
+            } else {
+                /**
+                try {
+                    val decoded = Base64.getDecoder().decode(definition)
+                    binaryString = BigInteger(1, decoded).toString(2)
+                } catch (_: Exception) {}
+                **/
+            }
+
+            val mask = ByteArray(binaryString.length)
+            binaryString.forEachIndexed { i, b -> mask[i] = b.code.toByte() }
+
+            Mask(mask)
+        }
+
+        SegmentationType.CHANNEL -> {
+            val channels = definition.split(",")
+            Channel(channels)
+        }
+
+        SegmentationType.TIME -> {
+            val timepoints = definition.split(",").mapNotNull {
+                it.trim().toIntOrNull()
+            }
+
+            val intervals = mutableListOf<Pair<Int, Int>>()
+            if (timepoints.size % 2 == 0) {
+                for (i in 0 until timepoints.size / 2) {
+                    intervals.add(Pair(timepoints[i * 2], timepoints[i * 2 + 1]))
+                }
+                Time(intervals)
             } else {
                 null
             }

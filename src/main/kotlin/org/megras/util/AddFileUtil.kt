@@ -85,12 +85,11 @@ object AddFileUtil {
             }
 
             //audio to keep
-            MimeType.OGG,
+            MimeType.OGG_A,
             MimeType.MPEG_A,
             MimeType.AAC,
             MimeType.MP4_A -> rawDescriptor
-
-
+            
             //audio to transform
             MimeType.ADP,
             MimeType.AIF,
@@ -98,10 +97,14 @@ object AddFileUtil {
             MimeType.MIDI,
             MimeType.WAV,
             MimeType.WAX,
-            MimeType.WMA -> {
-                TODO()
-            }
+            MimeType.WMA -> rawDescriptor
 
+
+            MimeType.MOV,
+            MimeType.MP4,
+            MimeType.WEBM,
+            MimeType.AVI,
+            MimeType.OGG -> rawDescriptor
 
             //raw and text types to keep
             MimeType.OCTET_STREAM,
@@ -110,7 +113,8 @@ object AddFileUtil {
             MimeType.HTML,
             MimeType.JS,
             MimeType.JSON,
-            MimeType.TEXT -> rawDescriptor
+            MimeType.TEXT,
+            MimeType.PDF -> rawDescriptor
         }
 
     }

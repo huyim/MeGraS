@@ -13,5 +13,20 @@ enum class SegmentationType {
      */
     POLYGON,
 
+    /**
+     * SVG path
+     */
+    PATH,
+
+    SPLINE,
+
+    /**
+     * Binary mask for each pixel
+     */
+    MASK,
+
+    CHANNEL,
+
+    TIME,
 
 }

@@ -1,6 +1,9 @@
 package org.megras.segmentation
 
+import org.apache.batik.parser.AWTPathProducer
 import org.megras.util.extensions.equalsEpsilon
+import java.awt.Shape
+import java.io.StringReader
 import java.lang.Double.max
 import java.lang.Double.min
 
@@ -131,4 +134,36 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
     fun move(dx: Double, dy: Double) : Polygon = Polygon(vertices.map { it.first + dx to it.second + dy })
 
 
+}
+
+data class Spline(val vertices: List<Pair<Double, Double>>) : Segmentation(SegmentationType.SPLINE) {}
+
+data class Path(val path: Shape) : Segmentation(SegmentationType.PATH) {
+    constructor(path: String) : this(AWTPathProducer.createShape(StringReader(path), 0))
+}
+
+data class Mask(val mask: ByteArray) : Segmentation(SegmentationType.MASK) {}
+
+data class Channel(val selection: List<String>) : Segmentation(SegmentationType.CHANNEL) {}
+
+data class Time(val intervals: List<Pair<Int, Int>>) : Segmentation(SegmentationType.TIME) {
+
+    fun getTimePointsToSegment() : List<Int> {
+        return intervals.flatMap { i -> (i.first until i.second).map { j -> j } }
+    }
+
+    fun getTimePointsToDiscard(start: Int, end: Int) : List<Int> {
+        val keep = getTimePointsToSegment().sorted()
+        var sweeper = 0
+
+        val res = mutableListOf<Int>()
+        for (i in start until end) {
+            if (sweeper < keep.size && keep[sweeper] == i) {
+                sweeper++
+            } else {
+                res.add(i)
+            }
+        }
+        return res
+    }
 }
