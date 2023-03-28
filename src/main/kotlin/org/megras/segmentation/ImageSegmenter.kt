@@ -1,123 +1,81 @@
 package org.megras.segmentation
 
-import org.megras.util.HashUtil
 import org.tinyspline.BSpline
 import java.awt.Color
-import java.awt.geom.AffineTransform
+import java.awt.Shape
 import java.awt.geom.Path2D
+import java.awt.geom.Rectangle2D
 import java.awt.image.BufferedImage
 import kotlin.math.roundToInt
 
 
 object ImageSegmenter {
 
-    fun toBinary(image: BufferedImage, segmentation: Segmentation) : String? = try {
-        when(segmentation.type) {
+    fun toBinary(image: BufferedImage, segmentation: Segmentation): ByteArray? = try {
+        when (segmentation.type) {
             SegmentationType.RECT -> rectToBinary(image, segmentation as Rect)
             SegmentationType.POLYGON -> polygonToBinary(image, segmentation as Polygon)
-            else -> TODO()
-        }
-    } catch (e: Exception) {
-        null
-    }
-
-    fun segment(image: BufferedImage, segmentation: Segmentation) : BufferedImage? = try {
-        when(segmentation.type) {
-            SegmentationType.RECT -> segmentRect(image, segmentation as Rect)
-            SegmentationType.POLYGON -> segmentPolygon(image, segmentation as Polygon)
-            SegmentationType.SPLINE -> segmentSpline(image, segmentation as Spline)
-            SegmentationType.PATH -> segmentPath(image, segmentation as Path)
-            SegmentationType.MASK -> segmentMask(image, segmentation as Mask)
-            SegmentationType.CHANNEL -> segmentChannel(image, segmentation as Channel)
+            SegmentationType.PATH -> pathToBinary(image, segmentation as Path)
+            SegmentationType.SPLINE -> splineToBinary(image, segmentation as Spline)
+            SegmentationType.MASK -> (segmentation as Mask).mask
             else -> null
         }
     } catch (e: Exception) {
-        //TODO log
         null
     }
 
-    private fun rectToBinary(image: BufferedImage, segmentation: Rect) : String {
+    fun segment(image: BufferedImage, mask: ByteArray): BufferedImage? {
+        try {
+            if (image.width * image.height != mask.size) {
+                return null
+            }
 
-        for (i in 0 until 10) {
-            val y = i / image.height
-            val x = i % image.width
-        }
-        return ""
-    }
+            var top = image.height
+            var bottom = 0
+            var left = image.width
+            var right = 0
 
-    private fun polygonToBinary(image: BufferedImage, segmentation: Polygon) : String {
+            for (y in 0 until image.height) {
+                for (x in 0 until image.width) {
 
-        val clip = java.awt.Polygon(segmentation.vertices.map { it.first.roundToInt() }.toIntArray(), segmentation.vertices.map { it.second.roundToInt() }.toIntArray(), segmentation.vertices.size)
-        val out = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB)
-        val g = out.createGraphics() //TODO replace clipping with mask alpha blending to get smooth edges
-        g.clip = clip
-        g.drawImage(image, 0, 0, null)
-        g.dispose()
-
-        val alpha = out.alphaRaster
-        val mask = ByteArray(out.width * out.height)
-
-        for (x in 0 until out.width) {
-            for (y in 0 until out.height) {
-                if (alpha.getSample(x, y, 0) == 0) {
-                    mask[y * out.height + x] = 0
-                }
-                else {
-                    mask[y * out.height + x] = 1
+                    if (mask[y * image.width + x].compareTo(1) == 0) {
+                        top = Math.min(top, y)
+                        bottom = Math.max(bottom, y)
+                        left = Math.min(left, x)
+                        right = Math.max(right, x)
+                    } else {
+                        image.setRGB(x, y, 0)
+                    }
                 }
             }
-        }
 
-        return HashUtil.hashToBase64(mask.inputStream(), HashUtil.HashType.MD5)
-    }
+            val out = BufferedImage(right - left, bottom - top, BufferedImage.TYPE_INT_ARGB)
+            val g = out.createGraphics()
+            g.drawImage(image, -left, -top, null)
+            g.dispose()
 
-    private fun segmentRect(image: BufferedImage, rect: Rect) : BufferedImage? {
-
-        val boundRect = rect.clip(0.0, image.width.toDouble(), 0.0, image.height.toDouble())
-
-        if (boundRect.width < 1 || boundRect.height < 1) {
+            return out
+        } catch (e: Exception) {
+            //TODO log
             return null
         }
-
-        val out = BufferedImage(boundRect.width.roundToInt(), boundRect.height.roundToInt(), image.type)
-        val g = out.graphics
-        g.drawImage(image, 0, 0, boundRect.width.roundToInt(), boundRect.height.roundToInt(), boundRect.xmin.roundToInt(), boundRect.ymin.roundToInt(), boundRect.xmax.roundToInt(), boundRect.ymax.roundToInt(), null)
-        g.dispose()
-        return out
     }
 
-
-    private fun segmentPolygon(image: BufferedImage, polygon: Polygon): BufferedImage {
-
-        val boundingRect = polygon.boundingRect()
-        val movedPolygon = polygon.move(-boundingRect.xmin, -boundingRect.ymin)
-
-        val clip = java.awt.Polygon(movedPolygon.vertices.map { it.first.roundToInt() }.toIntArray(), movedPolygon.vertices.map { it.second.roundToInt() }.toIntArray(), polygon.vertices.size)
-        val out = BufferedImage(boundingRect.width.roundToInt(), boundingRect.height.roundToInt(), BufferedImage.TYPE_INT_ARGB)
-        val g = out.createGraphics() //TODO replace clipping with mask alpha blending to get smooth edges
-        g.clip = clip
-        g.drawImage(image, -boundingRect.xmin.roundToInt(), -boundingRect.ymin.roundToInt(), null)
-        g.dispose()
-        return out
+    private fun rectToBinary(image: BufferedImage, r: Rect) : ByteArray {
+        val rect = Rectangle2D.Double(r.xmin, r.ymin, r.width, r.height)
+        return generateMask(image, rect)
     }
 
-    private fun segmentPath(image: BufferedImage, path: Path): BufferedImage {
-
-        val boundingRect = path.path.bounds
-        val transformation = AffineTransform()
-        transformation.translate(-boundingRect.minX, -boundingRect.minY)
-        val movedPath = transformation.createTransformedShape(path.path)
-
-        val out = BufferedImage(boundingRect.width, boundingRect.height, BufferedImage.TYPE_INT_ARGB)
-        val g = out.createGraphics()
-        g.clip = movedPath
-        g.drawImage(image, -boundingRect.minX.roundToInt(), -boundingRect.minY.roundToInt(), null)
-        g.dispose()
-        return out
+    private fun polygonToBinary(image: BufferedImage, segmentation: Polygon) : ByteArray {
+        val polygon = java.awt.Polygon(segmentation.vertices.map { it.first.roundToInt() }.toIntArray(), segmentation.vertices.map { it.second.roundToInt() }.toIntArray(), segmentation.vertices.size)
+        return generateMask(image, polygon)
     }
 
-    private fun segmentSpline(image: BufferedImage, polygon: Spline): BufferedImage {
+    private fun pathToBinary(image: BufferedImage, path: Path) : ByteArray {
+        return generateMask(image, path.path)
+    }
 
+    private fun splineToBinary(image: BufferedImage, polygon: Spline) : ByteArray {
         var spline = BSpline(polygon.vertices.size.toLong(), 2, 3, BSpline.Type.Opened)
         spline.controlPoints = polygon.vertices.flatMap { listOf(it.first, it.second) }
         spline = spline.toBeziers()
@@ -138,55 +96,34 @@ object ImageSegmenter {
             )
         }
 
-        val boundingRect = path.bounds
-        val transformation = AffineTransform()
-        transformation.translate(-boundingRect.minX, -boundingRect.minY)
-        val movedPath = transformation.createTransformedShape(path)
-
-        val out = BufferedImage(boundingRect.width, boundingRect.height, BufferedImage.TYPE_INT_ARGB)
-        val g = out.createGraphics()
-        g.drawImage(image, -boundingRect.minX.roundToInt(), -boundingRect.minY.roundToInt(), null)
-        g.color = Color.RED
-        g.fill(movedPath)
-
-        g.dispose()
-        return out
+        return generateMask(image, path)
     }
 
-    private fun segmentMask(image: BufferedImage, mask: Mask): BufferedImage {
+    private fun generateMask(inputImage: BufferedImage, clippingShape: Shape) : ByteArray {
+        val segmentedImage = BufferedImage(inputImage.width, inputImage.height, BufferedImage.TYPE_INT_ARGB)
+        val g = segmentedImage.createGraphics() //TODO replace clipping with mask alpha blending to get smooth edges
+        g.clip = clippingShape
+        g.drawImage(inputImage, 0, 0, null)
+        g.dispose()
 
-        if (image.width * image.height != mask.mask.size) {
-            return image
-        }
+        val alpha = segmentedImage.alphaRaster
+        val mask = ByteArray(segmentedImage.width * segmentedImage.height)
 
-        var top = image.height / 2
-        var bottom = top
-        var left = image.width / 2
-        var right = left
-
-        for (i in 0 until mask.mask.size) {
-            val y = i / image.height
-            val x = i % image.width
-
-            if (!mask.mask[y * image.height + x]) {
-                image.setRGB(x, y, 0)
-            } else {
-                top = Math.min(top, y);
-                bottom = Math.max(bottom, y);
-                left = Math.min(left, x);
-                right = Math.max(right, x);
+        for (y in 0 until segmentedImage.height) {
+            for (x in 0 until segmentedImage.width) {
+                if (alpha.getSample(x, y, 0) == 0) {
+                    mask[y * segmentedImage.width + x] = 0
+                }
+                else {
+                    mask[y * segmentedImage.width + x] = 1
+                }
             }
         }
-
-        val out = BufferedImage(right - left, bottom - top, BufferedImage.TYPE_INT_ARGB)
-        val g = out.createGraphics()
-        g.drawImage(image, -left, -top, null)
-        g.dispose()
-
-        return out
+        val x = mask.groupBy { it }.map { "${it.key} : ${it.value.size}" }
+        return mask
     }
 
-    private fun segmentChannel(image: BufferedImage, channel: Channel): BufferedImage {
+    fun segmentChannel(image: BufferedImage, channel: Channel): BufferedImage {
 
         for (x in 0 until image.width) {
             for (y in 0 until image.height) {
