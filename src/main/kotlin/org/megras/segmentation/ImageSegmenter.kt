@@ -24,7 +24,7 @@ object ImageSegmenter {
         null
     }
 
-    fun segment(image: BufferedImage, mask: ByteArray): BufferedImage? {
+    fun segment(image: BufferedImage, mask: ByteArray, imageType: Int = BufferedImage.TYPE_INT_ARGB): BufferedImage? {
         try {
             if (image.width * image.height != mask.size) {
                 return null
@@ -49,7 +49,7 @@ object ImageSegmenter {
                 }
             }
 
-            val out = BufferedImage(right - left, bottom - top, BufferedImage.TYPE_INT_ARGB)
+            val out = BufferedImage(right - left, bottom - top, imageType)
             val g = out.createGraphics()
             g.drawImage(image, -left, -top, null)
             g.dispose()

@@ -85,7 +85,7 @@ enum class MimeType(val mimeString: String) {
             "rmi" to MIDI,
             "mp4a" to MP4_A,
             "oga" to OGG_A,
-            "ogg" to OGG_A,
+            "ogg" to OGG,
             "spx" to OGG_A,
             "wav" to WAV,
             "wax" to WAX,
