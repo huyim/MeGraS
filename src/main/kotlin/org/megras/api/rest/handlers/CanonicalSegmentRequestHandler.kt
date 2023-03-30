@@ -116,7 +116,12 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 storeSegment(buf, MimeType.WAV, ctx)
             }
 
-            MediaType.VIDEO -> TODO()
+            MediaType.VIDEO -> {
+
+                val segment = VideoSegmenter.segment(storedObject.byteChannel(), segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
+
+                storeSegment(segment.array(), MimeType.OGG, ctx)
+            }
 
             MediaType.DOCUMENT -> {
                 val pdf = PDDocument.load(storedObject.inputStream())
