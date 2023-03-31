@@ -3,6 +3,7 @@ package org.megras.api.rest
 import io.javalin.Javalin
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.post
+import io.javalin.http.Context
 import org.megras.api.rest.handlers.*
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.model.Config
@@ -36,9 +37,11 @@ object RestApi {
         }.routes {
             get("/raw/{objectId}", rawObjectRequestHandler::get)
             get("/{objectId}", canonicalObjectRequestHandler::get)
-            get("/{objectId}/about", aboutObjectRequestHandler::get)
-            get("/{objectId}/c/{segmentId}", cachedSegmentRequestHandler::get)
-            get("/{objectId}/segment/{segmentation}/<segmentDefinition>", canonicalSegmentRequestHandler::get)
+            get("/<objectId>/about", aboutObjectRequestHandler::get)
+            get("/<objectId>/segment/{segmentation}/{segmentDefinition}/segment/{segmentation2}/{segmentDefinition2}*", canonicalSegmentRequestHandler::get)
+            get("/<objectId>/segment/{segmentation}/{segmentDefinition}*", canonicalSegmentRequestHandler::get)
+            get("/{objectId}/segment/{segmentation}/{segmentDefinition}", canonicalSegmentRequestHandler::get)
+            get("/{objectId}/c/{segmentId}*", cachedSegmentRequestHandler::get)
             post("/add", addFileRequestHandler::post)
         }.exception(RestErrorStatus::class.java) { e, ctx ->
             ctx.status(e.statusCode)

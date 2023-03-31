@@ -34,6 +34,10 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
      */
     override fun get(ctx: Context) {
 
+        val lookInCache = ctx.queryParam("nocache") == null
+
+        val nextSegment = checkIfNextSegment(ctx.path())
+
         val segmentationTypes = SegmentationUtil.parseSegmentationType(ctx.pathParam("segmentation"))
 
         if (segmentationTypes.any { it == null }) {
@@ -47,23 +51,25 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         }
 
 
-        val rawId = quads.filter(
+        val canonicalId = quads.filter(
             setOf(ObjectId(ctx.pathParam("objectId"))),
             setOf(MeGraS.CANONICAL_ID.uri),
             null
         ).firstOrNull()?.`object` as? StringValue ?: throw RestErrorStatus.notFound
 
 
-        val osId = StoredObjectId.of(rawId.value) ?: throw RestErrorStatus.notFound
+        val osId = StoredObjectId.of(canonicalId.value) ?: throw RestErrorStatus.notFound
 
         val storedObject = objectStore.get(osId) ?: throw RestErrorStatus.notFound
 
         //check cache
-        quads.filter(listOf(LocalQuadValue(ctx.path())), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
-            val cached = it.`object` as LocalQuadValue
-            ctx.redirect("/${cached.uri}", HttpStatus.TEMPORARY_REDIRECT)
-            println("found in cache")
-            return
+        if (lookInCache) {
+            quads.filter(listOf(LocalQuadValue(ctx.path())), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
+                val cached = it.`object` as LocalQuadValue
+                ctx.redirect("/${cached.uri}")
+                println("found in cache")
+                return
+            }
         }
 
         when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
@@ -71,7 +77,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 val text = storedObject.inputStream()
                 val segment = TextSegmenter.segment(text, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
 
-                storeSegment(segment, MimeType.TEXT, ctx)
+                storeSegment(segment, MimeType.TEXT, ctx, nextSegment)
             }
 
             MediaType.IMAGE -> {
@@ -89,7 +95,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                         val mask = ImageSegmenter.toBinary(img, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
                         hash = HashUtil.hashToBase64(mask.inputStream(), HashUtil.HashType.MD5)
 
-                        if (findInQuad(hash, ctx)) {
+                        if (findInQuad(hash, ctx, nextSegment)) {
                             println("found cached equivalent")
                             return
                         }
@@ -102,7 +108,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 ImageIO.write(segment, "PNG", out)
                 val buf = out.toByteArray()
 
-                storeSegment(buf, MimeType.PNG, ctx, hash)
+                storeSegment(buf, MimeType.PNG, ctx, nextSegment, hash)
 
             }
 
@@ -113,14 +119,14 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 AudioSystem.write(segment, AudioFileFormat.Type.WAVE, out)
                 val buf = out.toByteArray()
 
-                storeSegment(buf, MimeType.WAV, ctx)
+                storeSegment(buf, MimeType.WAV, ctx, nextSegment)
             }
 
             MediaType.VIDEO -> {
 
                 val segment = VideoSegmenter.segment(storedObject.byteChannel(), segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
 
-                storeSegment(segment.array(), MimeType.OGG, ctx)
+                storeSegment(segment.array(), MimeType.OGG, ctx, nextSegment)
             }
 
             MediaType.DOCUMENT -> {
@@ -133,7 +139,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 segment.close()
                 val buf = out.toByteArray()
 
-                storeSegment(buf, MimeType.PDF, ctx)
+                storeSegment(buf, MimeType.PDF, ctx, nextSegment)
             }
 
             MediaType.UNKNOWN -> TODO()
@@ -145,16 +151,20 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
     }
 
-    private fun findInQuad(hash: String, ctx: Context): Boolean {
+    private fun findInQuad(hash: String, ctx: Context, nextSegment: String?): Boolean {
         quads.filter(listOf(LocalQuadValue(hash)), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
             val cached = it.`object` as LocalQuadValue
-            ctx.redirect("/${cached.uri}")
+            if (nextSegment != null) {
+                ctx.redirect("/${cached.uri}/${nextSegment}")
+            } else {
+                ctx.redirect("/${cached.uri}")
+            }
             return true
         }
         return false
     }
 
-    private fun storeSegment(segment: ByteArray, mimeType: MimeType, ctx: Context, hash: String? = null) {
+    private fun storeSegment(segment: ByteArray, mimeType: MimeType, ctx: Context, nextSegment: String?, hash: String? = null) {
         val objectId = ctx.pathParam("objectId")
 
         val inStream = ByteArrayInputStream(segment)
@@ -172,14 +182,26 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         val cacheId = HashUtil.hashToBase64("${ctx.pathParam("segmentation")}/${ctx.pathParam("segmentDefinition")}", HashUtil.HashType.MD5)
         val cacheObject = LocalQuadValue("$objectId/c/$cacheId")
 
-        quads.add(Quad(cacheObject, MeGraS.RAW_ID.uri, StringValue(descriptor.id.id)))
-        quads.add(Quad(LocalQuadValue(ctx.path()), SchemaOrg.SAME_AS.uri, cacheObject))
+        quads.add(Quad(cacheObject, MeGraS.CANONICAL_ID.uri, StringValue(descriptor.id.id)))
         quads.add(Quad(cacheObject, MeGraS.SEGMENT_OF.uri, ObjectId(objectId)))
 
         if (!hash.isNullOrEmpty()) {
             quads.add(Quad(LocalQuadValue(hash), SchemaOrg.SAME_AS.uri, cacheObject))
         }
 
-        ctx.redirect("/${cacheObject.uri}")
+        if (nextSegment != null) {
+            quads.add(Quad(LocalQuadValue(ctx.path().replace("/$nextSegment", "")), SchemaOrg.SAME_AS.uri, cacheObject))
+            ctx.redirect("/${cacheObject.uri}/${nextSegment}")
+        } else {
+            quads.add(Quad(LocalQuadValue(ctx.path()), SchemaOrg.SAME_AS.uri, cacheObject))
+            ctx.redirect("/${cacheObject.uri}")
+        }
+    }
+
+    private fun checkIfNextSegment(path: String): String? {
+        val match = Regex("/.+/segment/.+/.+/(segment/.+)").find(path) ?: return null
+
+        val (nextSegment) = match.destructured
+        return nextSegment
     }
 }
