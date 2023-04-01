@@ -29,4 +29,10 @@ enum class SegmentationType {
 
     TIME,
 
+    /**
+     * 3D plane specified as a,b,c,d,above
+     * such that the plane is defined as ax + by + cz + d = 0 and 'above' indicates which side of the plane to keep
+     */
+    PLANE
+
 }

@@ -25,6 +25,7 @@ object SegmentationUtil {
                     SegmentationType.MASK -> TODO()
                     SegmentationType.CHANNEL -> TODO()
                     SegmentationType.TIME -> TODO()
+                    SegmentationType.PLANE -> TODO()
                 }
             }
             SegmentationType.POLYGON -> TODO()
@@ -33,6 +34,7 @@ object SegmentationUtil {
             SegmentationType.MASK -> TODO()
             SegmentationType.CHANNEL -> TODO()
             SegmentationType.TIME -> TODO()
+            SegmentationType.PLANE -> TODO()
         }
 
 
@@ -151,6 +153,18 @@ object SegmentationUtil {
                     intervals.add(Pair(timepoints[i * 2], timepoints[i * 2 + 1]))
                 }
                 Time(intervals)
+            } else {
+                null
+            }
+        }
+
+        SegmentationType.PLANE -> {
+            val params = definition.split(",").mapNotNull {
+                it.trim().toDoubleOrNull()
+            }
+
+            if (params.size == 5) {
+                Plane(params[0], params[1], params[2], params[3], params[4] == 1.0)
             } else {
                 null
             }

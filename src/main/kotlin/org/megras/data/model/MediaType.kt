@@ -10,6 +10,7 @@ enum class MediaType(val prefix: Char, val mimeTypes: Set<MimeType>) {
     //TODO...
     VIDEO('v', setOf(MimeType.MOV, MimeType.MP4, MimeType.OGG, MimeType.WEBM)),
     DOCUMENT('d', setOf(MimeType.PDF)),
+    MESH('m', setOf(MimeType.OBJ)),
     UNKNOWN('x', setOf(MimeType.OCTET_STREAM));
 
 

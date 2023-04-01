@@ -1,7 +1,8 @@
 package org.megras.api.rest.handlers
 
+import de.javagl.obj.ObjReader
+import de.javagl.obj.ObjWriter
 import io.javalin.http.Context
-import io.javalin.http.HttpStatus
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.megras.api.rest.GetRequestHandler
 import org.megras.api.rest.RestErrorStatus
@@ -140,6 +141,17 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 val buf = out.toByteArray()
 
                 storeSegment(buf, MimeType.PDF, ctx, nextSegment)
+            }
+
+            MediaType.MESH -> {
+                val obj = ObjReader.read(storedObject.inputStream())
+                val segment = MeshSegmenter.segment(obj, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
+
+                val out = ByteArrayOutputStream()
+                ObjWriter.write(segment, out)
+                val buf = out.toByteArray()
+
+                storeSegment(buf, MimeType.OBJ, ctx, nextSegment)
             }
 
             MediaType.UNKNOWN -> TODO()

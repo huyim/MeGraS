@@ -114,7 +114,8 @@ object AddFileUtil {
             MimeType.JS,
             MimeType.JSON,
             MimeType.TEXT,
-            MimeType.PDF -> rawDescriptor
+            MimeType.PDF,
+            MimeType.OBJ -> rawDescriptor
         }
 
     }

@@ -70,6 +70,8 @@ dependencies {
 
     implementation group: 'org.apache.commons', name: 'commons-compress', version: '1.23.0'
 
+    implementation group: 'de.javagl', name: 'obj', version: '0.4.0'
+
     /* CSV */
     implementation group: 'com.github.doyaaaaaken', name: 'kotlin-csv-jvm', version: '1.2.0'
 

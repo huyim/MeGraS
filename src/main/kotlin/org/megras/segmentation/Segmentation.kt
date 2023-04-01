@@ -167,3 +167,5 @@ data class Time(val intervals: List<Pair<Int, Int>>) : Segmentation(Segmentation
         return res
     }
 }
+
+data class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) : Segmentation(SegmentationType.PLANE) {}

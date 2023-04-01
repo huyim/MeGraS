@@ -41,7 +41,9 @@ enum class MimeType(val mimeString: String) {
     WEBM("video/webm"),
     AVI("video/avi"),
 
-    PDF("application/pdf");
+    PDF("application/pdf"),
+
+    OBJ("model/obj");
 
     companion object {
         val extensionMap = mapOf(
@@ -99,7 +101,9 @@ enum class MimeType(val mimeString: String) {
             "ogx" to OGG,
             "webm" to WEBM,
 
-            "pdf" to PDF
+            "pdf" to PDF,
+
+            "obj" to OBJ
 
         )
 

@@ -59,6 +59,7 @@ object IdUtil {
                 MediaType.AUDIO -> {"${MediaType.AUDIO.prefix}${HashUtil.hashToBase64(file.inputStream())}"}
                 MediaType.VIDEO -> {"${MediaType.VIDEO.prefix}${HashUtil.hashToBase64(file.inputStream())}"}
                 MediaType.DOCUMENT -> {"${MediaType.DOCUMENT.prefix}${HashUtil.hashToBase64(file.inputStream())}"}
+                MediaType.MESH -> {"${MediaType.MESH.prefix}${HashUtil.hashToBase64(file.inputStream())}"}
                 MediaType.UNKNOWN -> "${MediaType.UNKNOWN.prefix}${HashUtil.hashToBase64(file.inputStream())}"
             }.trim())
     }
