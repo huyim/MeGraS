@@ -8,7 +8,7 @@ enum class MediaType(val prefix: Char, val mimeTypes: Set<MimeType>) {
     IMAGE('i', setOf(MimeType.BMP, MimeType.GIF, MimeType.JPEG_I, MimeType.PNG, MimeType.SVG, MimeType.TIFF)),
     AUDIO('a', setOf(MimeType.AAC, MimeType.ADP, MimeType.AIF, MimeType.AU, MimeType.MPEG_A, MimeType.MIDI, MimeType.MP4_A, MimeType.OGG_A, MimeType.WAV, MimeType.WAX, MimeType.WMA)),
     //TODO...
-    VIDEO('v', setOf(MimeType.MOV, MimeType.MP4, MimeType.OGG, MimeType.WEBM)),
+    VIDEO('v', setOf(MimeType.MOV, MimeType.MP4, MimeType.OGG, MimeType.WEBM, MimeType.MKV)),
     DOCUMENT('d', setOf(MimeType.PDF)),
     MESH('m', setOf(MimeType.OBJ)),
     UNKNOWN('x', setOf(MimeType.OCTET_STREAM));

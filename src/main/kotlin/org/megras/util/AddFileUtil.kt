@@ -1,5 +1,9 @@
 package org.megras.util
 
+import com.github.kokorin.jaffree.ffmpeg.ChannelInput
+import com.github.kokorin.jaffree.ffmpeg.ChannelOutput
+import com.github.kokorin.jaffree.ffmpeg.FFmpeg
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.fs.StoredObjectDescriptor
 import org.megras.data.fs.file.PseudoFile
@@ -59,9 +63,7 @@ object AddFileUtil {
                     ImageIO.write(buffered, "PNG", outStream)
 
                     val buf = outStream.toByteArray()
-
                     val inStream = ByteArrayInputStream(buf)
-
                     val id = objectStore.idFromStream(inStream)
 
                     inStream.reset()
@@ -71,7 +73,6 @@ object AddFileUtil {
                         MimeType.PNG,
                         buf.size.toLong()
                     )
-
                     objectStore.store(inStream, descriptor)
 
                     //return
@@ -99,12 +100,44 @@ object AddFileUtil {
             MimeType.WAX,
             MimeType.WMA -> rawDescriptor
 
-
+            MimeType.MKV,
+            MimeType.WEBM,
             MimeType.MOV,
             MimeType.MP4,
-            MimeType.WEBM,
             MimeType.AVI,
-            MimeType.OGG -> rawDescriptor
+            MimeType.OGG -> {
+                try {
+                    val videoStream = objectStore.get(rawDescriptor.id)!!.byteChannel()
+                    val outStream = SeekableInMemoryByteChannel()
+                    FFmpeg.atPath()
+                        .addInput(ChannelInput.fromChannel(videoStream))
+                        .addArguments("-c:v", "libvpx-vp9")
+                        .addArguments("-c:a", "libvorbis")
+                        .setOverwriteOutput(true)
+                        .addOutput(ChannelOutput.toChannel("", outStream).setFormat("matroska"))
+                        .execute()
+
+                    val buf = outStream.array()
+                    val inStream = ByteArrayInputStream(buf)
+                    val id = objectStore.idFromStream(inStream)
+
+                    inStream.reset()
+
+                    val descriptor = StoredObjectDescriptor(
+                        id,
+                        MimeType.MKV,
+                        buf.size.toLong()
+                    )
+                    objectStore.store(inStream, descriptor)
+
+                    //return
+                    descriptor
+
+                } catch (e: Exception) {
+                    //TODO log
+                    rawDescriptor
+                }
+            }
 
             //raw and text types to keep
             MimeType.OCTET_STREAM,

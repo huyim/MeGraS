@@ -40,6 +40,7 @@ enum class MimeType(val mimeString: String) {
     OGG("video/ogg"),
     WEBM("video/webm"),
     AVI("video/avi"),
+    MKV("video/x-matroska"),
 
     PDF("application/pdf"),
 
@@ -100,6 +101,7 @@ enum class MimeType(val mimeString: String) {
             "ogv" to OGG,
             "ogx" to OGG,
             "webm" to WEBM,
+            "mkv" to MKV,
 
             "pdf" to PDF,
 

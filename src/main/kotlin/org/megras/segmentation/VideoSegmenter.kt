@@ -34,7 +34,7 @@ object VideoSegmenter {
             .addInput(ChannelInput.fromChannel(videoStream))
             .setFilter(StreamType.VIDEO, "crop=w=${rect.width}:h=${rect.height}:x=${rect.xmin}:y=${rect.ymin}")
             .setOverwriteOutput(true)
-            .addOutput(ChannelOutput.toChannel("", out).setFormat("ogg"))
+            .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
             .execute()
         return out
     }
@@ -57,13 +57,11 @@ object VideoSegmenter {
                         override fun consumeStreams(streams: List<Stream?>?) {}
 
                         override fun consume(frame: Frame?) {
-                            if (frame == null) {
-                                return
+                            if (frame != null) {
+                                val segmentMask = ImageSegmenter.toBinary(frame.image, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                                val segmentedImage = ImageSegmenter.segment(frame.image, segmentMask, BufferedImage.TYPE_4BYTE_ABGR) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                                images.add(segmentedImage)
                             }
-
-                            val segmentMask = ImageSegmenter.toBinary(frame.image, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
-                            val segmentedImage = ImageSegmenter.segment(frame.image, segmentMask, BufferedImage.TYPE_3BYTE_BGR) ?: throw RestErrorStatus(403, "Invalid segmentation")
-                            images.add(segmentedImage)
                         }
                     }
                 )
@@ -75,7 +73,7 @@ object VideoSegmenter {
 
         FFmpeg.atPath()
             .addInput(
-                FrameInput.withProducer(
+                FrameInput.withProducerAlpha(
                 object : FrameProducer {
                     private var frameCounter = 0
                     override fun produceStreams(): List<Stream> {
@@ -101,8 +99,9 @@ object VideoSegmenter {
                     }
                 }
             ))
+            .addArguments("-c:v", "libvpx-vp9")
             .setOverwriteOutput(true)
-            .addOutput(ChannelOutput.toChannel("", out).setFormat("ogg"))
+            .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
             .execute()
         return out
     }
@@ -118,7 +117,7 @@ object VideoSegmenter {
             .addInput(ChannelInput.fromChannel(videoStream).setPosition(time.intervals[0].first, TimeUnit.SECONDS)
                 .setDuration(time.intervals[0].second - time.intervals[0].first, TimeUnit.SECONDS))
             .setOverwriteOutput(true)
-            .addOutput(ChannelOutput.toChannel("", out).setFormat("ogg"))
+            .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
             .execute()
         return out
     }
@@ -138,13 +137,13 @@ object VideoSegmenter {
 
         when(channel.selection[0]) {
             "video" -> {
-                ffmpeg.addArgument("-an")
-                    .addOutput(ChannelOutput.toChannel("", out).setFormat("ogg"))
+                ffmpeg.addArguments("-c:v", "copy").addArgument("-an")
+                    .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
             }
 
             "audio" -> {
-                ffmpeg.addArguments("-q:a", "0").addArguments("-map", "a")
-                    .addOutput(ChannelOutput.toChannel("", out).setFormat("ogg"))
+                ffmpeg.addArguments("-c:a", "copy").addArgument("-vn")
+                    .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
             }
         }
 
