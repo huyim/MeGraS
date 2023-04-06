@@ -19,172 +19,328 @@ object SegmentationUtil {
                         second as Polygon
                         second.toRect() == first
                     }
-                    SegmentationType.RECT -> false
-                    SegmentationType.PATH -> TODO()
-                    SegmentationType.SPLINE -> TODO()
-                    SegmentationType.MASK -> TODO()
-                    SegmentationType.CHANNEL -> TODO()
-                    SegmentationType.TIME -> TODO()
-                    SegmentationType.PLANE -> TODO()
+                    SegmentationType.PATH -> {
+                        second as SVGPath
+                        first.toShape() == second.shape
+                    }
+                    else -> false
                 }
             }
-            SegmentationType.POLYGON -> TODO()
-            SegmentationType.PATH -> TODO()
-            SegmentationType.SPLINE -> TODO()
-            SegmentationType.MASK -> TODO()
-            SegmentationType.CHANNEL -> TODO()
-            SegmentationType.TIME -> TODO()
-            SegmentationType.PLANE -> TODO()
+            SegmentationType.POLYGON -> {
+                first as Polygon
+                when (second.type) {
+                    SegmentationType.PATH -> {
+                        second as SVGPath
+                        first.toShape() == second.shape
+                    }
+                    else -> false
+                }
+            }
+            SegmentationType.PATH -> {
+                first as SVGPath
+                when (second.type) {
+                    SegmentationType.SPLINE -> {
+                        second as Spline
+                        first.shape == second.path
+                    }
+                    else -> false
+                }
+            }
+            // all others can only be equivalent to their own type
+            else -> false
         }
-
-
     }
 
-    fun parseSegmentationType(name: String): List<SegmentationType?> =
-        name.trim().split(",").map {
-            try {
-                SegmentationType.valueOf(it.uppercase())
-            } catch (e: IllegalArgumentException) {
-                null //not found
+    fun contains(source: Segmentation, target: Segmentation): Boolean {
+
+        return when(source.type) {
+            SegmentationType.RECT -> {
+                source as Rect
+                when (target.type) {
+                    SegmentationType.RECT -> {
+                        target as Rect
+                        source.xmin <= target.xmin && source.xmax >= target.xmax &&
+                                source.ymin <= target.ymin && source.ymax >= target.ymax
+                    }
+                    SegmentationType.POLYGON -> {
+                        val targetBound = (target as Polygon).boundingRect()
+                        source.xmin <= targetBound.xmin && source.xmax >= targetBound.xmax &&
+                                source.ymin <= targetBound.ymin && source.ymax >= targetBound.ymax
+                    }
+                    SegmentationType.PATH -> {
+                        val targetBound = (target as SVGPath).shape.bounds
+                        source.xmin <= targetBound.minX && source.xmax >= targetBound.maxX &&
+                                source.ymin <= targetBound.minY && source.ymax >= targetBound.maxX
+                    }
+                    SegmentationType.SPLINE -> {
+                        val targetBound = (target as Spline).path.bounds
+                        source.xmin <= targetBound.minX && source.xmax >= targetBound.maxX &&
+                                source.ymin <= targetBound.minY && source.ymax >= targetBound.maxX
+                    }
+                    else -> false
+                }
+            }
+            SegmentationType.POLYGON -> {
+                source as Polygon
+                when (target.type) {
+                    SegmentationType.RECT -> {
+                        target as Rect
+                        val s = source.boundingRect()
+                        s.xmin <= target.xmin && s.xmax >= target.xmax && s.ymin <= target.ymin && s.ymax >= target.ymax
+                    }
+                    SegmentationType.POLYGON -> {
+                        target as Polygon
+                        val sourceShape = source.toShape()
+                        if (source.isConvex()) {
+                            target.vertices.all { sourceShape.contains(it.first, it.second) }
+                        } else {
+                            var intersect = false
+                            for (i in 0 until source.vertices.size) {
+                                val p1 = source.vertices[i]
+                                val p2 = source.vertices[(i + 1) % source.vertices.size]
+                                for (j in 0 until target.vertices.size) {
+                                    val p3 = target.vertices[i]
+                                    val p4 = target.vertices[(i + 1) % target.vertices.size]
+                                    intersect = intersect || doLinesIntersect(p1.first, p1.second, p2.first, p2.second, p3.first, p3.second, p4.first, p4.second)
+                                    if (intersect) break
+                                }
+                            }
+                            !intersect && sourceShape.contains(target.vertices[0].first, target.vertices[0].second)
+                        }
+                    }
+                    SegmentationType.PATH -> {
+                        target as SVGPath
+                        TODO()
+                    }
+                    SegmentationType.SPLINE -> {
+                        target as Polygon
+                        TODO()
+                    }
+                    else -> false
+                }
+            }
+            SegmentationType.PATH -> {
+                source as SVGPath
+                when (target.type) {
+                    SegmentationType.SPLINE -> {
+                        target as Polygon
+                        TODO()
+                    }
+                    else -> false
+                }
+            }
+            SegmentationType.SPLINE -> false
+            SegmentationType.PLANE -> false
+            SegmentationType.MASK -> false
+            SegmentationType.CHANNEL -> {
+                source as Channel
+                when (target.type) {
+                    SegmentationType.CHANNEL -> {
+                        target as Channel
+                        target.selection.all { source.selection.contains(it) }
+                    }
+                    else -> false
+                }
+            }
+            SegmentationType.TIME -> {
+                val sourcePoints = (source as Time).getTimePointsToSegment()
+                when (target.type) {
+                    SegmentationType.TIME -> {
+                        val targetPoints = (target as Time).getTimePointsToSegment()
+                        targetPoints.all { sourcePoints.contains(it) }
+                    }
+                    else -> false
+                }
             }
         }
+    }
 
-    fun parseSegmentation(type: SegmentationType, definition: String): Segmentation? = when(type) {
-        SegmentationType.RECT -> {
-
-            val coords = definition.split(",").mapNotNull {
-                it.trim().toDoubleOrNull()
+    fun translate(segmentation: Segmentation, by: Segmentation): Segmentation {
+        return when (by.type) {
+            SegmentationType.RECT -> {
+                by as Rect
+                when (segmentation.type) {
+                    SegmentationType.RECT -> (segmentation as Rect).move(by.xmin, by.ymin)
+                    SegmentationType.POLYGON -> (segmentation as Polygon).move(by.xmin, by.ymin)
+                    SegmentationType.PATH -> (segmentation as SVGPath).move(by.xmin, by.ymin)
+                    SegmentationType.SPLINE -> (segmentation as Polygon).move(by.xmin, by.ymin)
+                    else -> segmentation
+                }
             }
-
-            if (coords.size == 4) {
-                Rect(coords[0], coords[1], coords[2], coords[3])
-            } else if (coords.size >= 6) {
-                Rect(coords[0], coords[1], coords[2], coords[3], coords[4], coords[5])
-            } else {
-                null
+            SegmentationType.POLYGON, SegmentationType.SPLINE -> {
+                by as Polygon
+                when (segmentation.type) {
+                    SegmentationType.RECT -> (segmentation as Rect).move(by.xmin, by.xmin)
+                    SegmentationType.POLYGON -> (segmentation as Polygon).move(by.xmin, by.ymin)
+                    SegmentationType.PATH -> (segmentation as SVGPath).move(by.xmin, by.ymin)
+                    SegmentationType.SPLINE -> (segmentation as Polygon).move(by.xmin, by.ymin)
+                    else -> segmentation
+                }
             }
-
-
+            SegmentationType.TIME -> {
+                by as Time
+                (segmentation as Time).move(by.intervals[0].first)
+            }
+            else -> segmentation
         }
-        /**
-         * (x,y),(x,y),...,(x,y)
-         */
-        SegmentationType.POLYGON -> {
+    }
 
-            val points = definition.split("),").map { chunk ->
-                val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
-                if (coords.any { it == null }) {
-                    null
-                } else if (coords.size < 2) {
-                    null
+    fun shouldSwap(first: SegmentationType, second: SegmentationType): Boolean {
+        return (first != SegmentationType.TIME && second == SegmentationType.TIME) ||
+            (first == SegmentationType.CHANNEL && second != SegmentationType.CHANNEL)
+    }
+
+    fun parseSegmentationType(name: String): SegmentationType? =
+        try {
+            SegmentationType.valueOf(name.uppercase())
+        } catch (e: IllegalArgumentException) {
+            null //not found
+        }
+
+    fun parseSegmentation(segmentType: String, segmentDefinition: String): Segmentation? {
+
+        return when (parseSegmentationType(segmentType)) {
+            SegmentationType.RECT -> {
+
+                val coords = segmentDefinition.split(",").mapNotNull {
+                    it.trim().toDoubleOrNull()
+                }
+
+                if (coords.size == 4) {
+                    Rect(coords[0], coords[1], coords[2], coords[3])
+                } else if (coords.size >= 6) {
+                    Rect(coords[0], coords[1], coords[2], coords[3], coords[4], coords[5])
                 } else {
-                    coords[0]!! to coords[1]!!
+                    null
+                }
+
+
+            }
+            /**
+             * (x,y),(x,y),...,(x,y)
+             */
+            SegmentationType.POLYGON -> {
+
+                val points = segmentDefinition.split("),").map { chunk ->
+                    val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
+                    if (coords.any { it == null }) {
+                        null
+                    } else if (coords.size < 2) {
+                        null
+                    } else {
+                        coords[0]!! to coords[1]!!
+                    }
+                }
+
+                val finalPoints = points.filterNotNull()
+
+                if (finalPoints.size == points.size) {
+                    Polygon(finalPoints)
+                } else {
+                    null
                 }
             }
 
-            val finalPoints = points.filterNotNull()
+            SegmentationType.SPLINE -> {
 
-            if (finalPoints.size == points.size) {
-                Polygon(finalPoints)
-            } else {
-                null
-            }
-        }
+                val points = segmentDefinition.split("),").map { chunk ->
+                    val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
+                    if (coords.any { it == null }) {
+                        null
+                    } else if (coords.size < 2) {
+                        null
+                    } else {
+                        coords[0]!! to coords[1]!!
+                    }
+                }
 
-        SegmentationType.SPLINE -> {
+                val finalPoints = points.filterNotNull()
 
-            val points = definition.split("),").map { chunk ->
-                val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
-                if (coords.any { it == null }) {
-                    null
-                } else if (coords.size < 2) {
-                    null
+                if (finalPoints.size == points.size) {
+                    Spline(finalPoints)
                 } else {
-                    coords[0]!! to coords[1]!!
+                    null
                 }
             }
 
-            val finalPoints = points.filterNotNull()
-
-            if (finalPoints.size == points.size) {
-                Spline(finalPoints)
-            } else {
-                null
+            SegmentationType.PATH -> {
+                SVGPath(segmentDefinition)
             }
-        }
 
-        SegmentationType.PATH -> {
-            Path(definition)
-        }
+            SegmentationType.MASK -> {
 
-        SegmentationType.MASK -> {
-
-            var binaryString = ""
-            if (definition.matches(Regex("^[01]+$"))) {
-                binaryString = definition
-            } else {
-                /**
-                try {
+                var binaryString = ""
+                if (segmentDefinition.matches(Regex("^[01]+$"))) {
+                    binaryString = segmentDefinition
+                } else {
+                    /**
+                    try {
                     val decoded = Base64.getDecoder().decode(definition)
                     binaryString = BigInteger(1, decoded).toString(2)
-                } catch (_: Exception) {}
-                **/
-            }
-
-            val mask = ByteArray(binaryString.length)
-            binaryString.forEachIndexed { i, b -> mask[i] = b.code.toByte() }
-
-            Mask(mask)
-        }
-
-        SegmentationType.CHANNEL -> {
-            val channels = definition.split(",")
-            Channel(channels)
-        }
-
-        SegmentationType.TIME -> {
-            val timepoints = definition.split(",").mapNotNull {
-                it.trim().toIntOrNull()
-            }
-
-            val intervals = mutableListOf<Pair<Int, Int>>()
-            if (timepoints.size % 2 == 0) {
-                for (i in 0 until timepoints.size / 2) {
-                    intervals.add(Pair(timepoints[i * 2], timepoints[i * 2 + 1]))
+                    } catch (_: Exception) {}
+                     **/
                 }
-                Time(intervals)
-            } else {
-                null
-            }
-        }
 
-        SegmentationType.PLANE -> {
-            val params = definition.split(",").mapNotNull {
-                it.trim().toDoubleOrNull()
+                val mask = ByteArray(binaryString.length)
+                binaryString.forEachIndexed { i, b -> mask[i] = b.code.toByte() }
+
+                Mask(mask)
             }
 
-            if (params.size == 5) {
-                Plane(params[0], params[1], params[2], params[3], params[4] == 1.0)
-            } else {
-                null
+            SegmentationType.CHANNEL -> {
+                val channels = segmentDefinition.split(",")
+                Channel(channels)
             }
+
+            SegmentationType.TIME -> {
+                val timepoints = segmentDefinition.split(",").mapNotNull {
+                    it.trim().toIntOrNull()
+                }
+
+                val intervals = mutableListOf<Pair<Int, Int>>()
+                if (timepoints.size % 2 == 0) {
+                    for (i in 0 until timepoints.size / 2) {
+                        intervals.add(Pair(timepoints[i * 2], timepoints[i * 2 + 1]))
+                    }
+                    Time(intervals)
+                } else {
+                    null
+                }
+            }
+
+            SegmentationType.PLANE -> {
+                val params = segmentDefinition.split(",").mapNotNull {
+                    it.trim().toDoubleOrNull()
+                }
+
+                if (params.size == 5) {
+                    Plane(params[0], params[1], params[2], params[3], params[4] == 1.0)
+                } else {
+                    null
+                }
+            }
+
+            else -> null
         }
     }
 
+    private fun doLinesIntersect(x1: Double, y1: Double, x2: Double, y2: Double, x3: Double, y3: Double, x4: Double, y4: Double): Boolean {
+        // Calculate the slopes and intercepts of the two lines
+        val m1 = (y2 - y1) / (x2 - x1)
+        val b1 = y1 - m1 * x1
+        val m2 = (y4 - y3) / (x4 - x3)
+        val b2 = y3 - m2 * x3
 
-    fun parseSegmentation(types: List<SegmentationType>, definition: String): List<Segmentation> {
-
-        if (types.isEmpty()) {
-            return emptyList()
+        // Check if the lines are parallel (i.e., have the same slope)
+        if (m1 == m2) {
+            return false
         }
 
-        if (types.size == 1) {
-            return listOfNotNull(parseSegmentation(types.first(), definition))
-        }
+        // Calculate the x-coordinate of the intersection point
+        val xIntersect = (b2 - b1) / (m1 - m2)
 
-        TODO()
-
+        // Check if the intersection point lies within the x-coordinates of the two line segments
+        return xIntersect >= Math.min(x1, x2) && xIntersect <= Math.max(x1, x2) &&
+                xIntersect >= Math.min(x3,x4) && xIntersect <= Math.max(x3, x4)
     }
-
-
 }

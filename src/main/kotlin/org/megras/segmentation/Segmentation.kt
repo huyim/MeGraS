@@ -2,10 +2,16 @@ package org.megras.segmentation
 
 import org.apache.batik.parser.AWTPathProducer
 import org.megras.util.extensions.equalsEpsilon
+import org.tinyspline.BSpline
 import java.awt.Shape
+import java.awt.geom.AffineTransform
+import java.awt.geom.Path2D
+import java.awt.geom.Rectangle2D
 import java.io.StringReader
 import java.lang.Double.max
 import java.lang.Double.min
+import kotlin.math.roundToInt
+
 
 sealed class Segmentation(val type: SegmentationType)
 
@@ -39,6 +45,8 @@ data class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: 
         return result
     }
 
+    override fun toString(): String = "segment/rect/" + "$xmin,$xmax,$ymin,$ymax"
+
     fun to2dPolygon() : Polygon = Polygon(
         listOf(
             xmin to ymin,
@@ -47,6 +55,8 @@ data class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: 
             xmin to ymax
         )
     )
+
+    fun toShape() : Shape = Rectangle2D.Double(xmin, ymin, width, height)
 
     val width: Double
         get() = xmax - xmin
@@ -61,6 +71,7 @@ data class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: 
         max(this.zmin, zmin), min(this.zmax, zmax)
     )
 
+    fun move(dx: Double, dy: Double) : Rect = Rect(xmin + dx, xmax + dx, ymin + dy, ymax + dy)
 }
 
 data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(SegmentationType.POLYGON) {
@@ -68,6 +79,21 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
         require(vertices.size > 2) {
             throw IllegalArgumentException ("A polygon needs at least 3 vertices")
         }
+    }
+
+    fun isConvex(): Boolean {
+        if (vertices.size < 4) return true
+        var sign = false
+        val n: Int = vertices.size
+        for (i in 0 until n) {
+            val dx1: Double = vertices[(i + 2) % n].first - vertices[(i + 1) % n].first
+            val dy1: Double = vertices[(i + 2) % n].second - vertices[(i + 1) % n].second
+            val dx2: Double = vertices[i].first - vertices[(i + 1) % n].first
+            val dy2: Double = vertices[i].second - vertices[(i + 1) % n].second
+            val zcrossproduct = dx1 * dy2 - dy1 * dx2
+            if (i == 0) sign = zcrossproduct > 0 else if (sign != zcrossproduct > 0) return false
+        }
+        return true
     }
 
     /**
@@ -87,8 +113,11 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
         }
 
         return Rect(xmin, xmax, ymin, ymax)
-
     }
+
+    val xmin : Double = vertices.minOf { it.first }
+
+    val ymin : Double = vertices.minOf { it.second }
 
     /**
      * Converts [Polygon] into equivalent 2d [Rect] in case it exists
@@ -111,6 +140,8 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
 
     }
 
+    fun toShape() : Shape = java.awt.Polygon(vertices.map { it.first.roundToInt() }.toIntArray(), vertices.map { it.second.roundToInt() }.toIntArray(), vertices.size)
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -131,15 +162,64 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
         return vertices.sortedBy { it.first }.sortedBy { it.second }.hashCode()
     }
 
-    fun move(dx: Double, dy: Double) : Polygon = Polygon(vertices.map { it.first + dx to it.second + dy })
+    override fun toString(): String = "segment/polygon/" + vertices.joinToString(",") { "(${it.first},${it.second})" }
 
+    fun move(dx: Double, dy: Double) : Polygon = Polygon(vertices.map { it.first + dx to it.second + dy })
 
 }
 
-data class Spline(val vertices: List<Pair<Double, Double>>) : Segmentation(SegmentationType.SPLINE) {}
+data class SVGPath(val shape: Shape) : Segmentation(SegmentationType.PATH) {
 
-data class Path(val path: Shape) : Segmentation(SegmentationType.PATH) {
     constructor(path: String) : this(AWTPathProducer.createShape(StringReader(path), 0))
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as SVGPath
+        if (this.shape.bounds != other.shape.bounds) return false
+        return false
+    }
+
+    override fun hashCode(): Int {
+        return shape.hashCode()
+    }
+
+    fun move(dx: Double, dy: Double) : SVGPath {
+        val transform = AffineTransform()
+        transform.translate(dx, dy)
+        return SVGPath(transform.createTransformedShape(shape))
+    }
+}
+
+data class Spline(val controlPoints: List<Pair<Double, Double>>, val path: Path2D) : Segmentation(SegmentationType.SPLINE) {
+    companion object {
+        operator fun invoke(controlPoints: List<Pair<Double, Double>>): Spline {
+
+            var spline = BSpline(controlPoints.size.toLong(), 2, 3, BSpline.Type.Opened)
+            spline.controlPoints = controlPoints.flatMap { listOf(it.first, it.second) }
+            spline = spline.toBeziers()
+//            val spline = BSpline.interpolateCubicNatural(polygon.vertices.flatMap { listOf(it.first, it.second) }, 2).toBeziers()
+
+            val ctrlp = spline.controlPoints
+            val order = spline.order.toInt()
+            val dim = spline.dimension.toInt()
+            val nBeziers = (ctrlp.size / dim) / order
+            val path = Path2D.Double()
+            path.moveTo(ctrlp[0], ctrlp[1])
+            for (i in 0 until nBeziers) {
+                path.curveTo(
+                    ctrlp[i * dim * order + 2], ctrlp[i * dim * order + 3],
+                    ctrlp[i * dim * order + 4], ctrlp[i * dim * order + 5],
+                    ctrlp[i * dim * order + 6], ctrlp[i * dim * order + 7]
+                )
+            }
+
+            return Spline(controlPoints, path)
+        }
+    }
+
+
 }
 
 data class Mask(val mask: ByteArray) : Segmentation(SegmentationType.MASK) {}
@@ -147,6 +227,22 @@ data class Mask(val mask: ByteArray) : Segmentation(SegmentationType.MASK) {}
 data class Channel(val selection: List<String>) : Segmentation(SegmentationType.CHANNEL) {}
 
 data class Time(val intervals: List<Pair<Int, Int>>) : Segmentation(SegmentationType.TIME) {
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as Time
+        return this.getTimePointsToSegment() == other.getTimePointsToSegment()
+    }
+
+    override fun hashCode(): Int {
+        return intervals.sortedBy { it.first }.hashCode()
+    }
+
+    override fun toString(): String = "segment/time/" + intervals.joinToString(",") { "${it.first},${it.second}" }
+
+    fun move(dt: Int) : Time = Time(intervals.map { it.first + dt to it.second + dt })
 
     fun getTimePointsToSegment() : List<Int> {
         return intervals.flatMap { i -> (i.first until i.second).map { j -> j } }

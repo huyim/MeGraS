@@ -15,7 +15,7 @@ object ImageSegmenter {
         when (segmentation.type) {
             SegmentationType.RECT -> rectToBinary(image, segmentation as Rect)
             SegmentationType.POLYGON -> polygonToBinary(image, segmentation as Polygon)
-            SegmentationType.PATH -> pathToBinary(image, segmentation as Path)
+            SegmentationType.PATH -> pathToBinary(image, segmentation as SVGPath)
             SegmentationType.SPLINE -> splineToBinary(image, segmentation as Spline)
             SegmentationType.MASK -> (segmentation as Mask).mask
             else -> null
@@ -61,42 +61,20 @@ object ImageSegmenter {
         }
     }
 
-    private fun rectToBinary(image: BufferedImage, r: Rect) : ByteArray {
-        val rect = Rectangle2D.Double(r.xmin, r.ymin, r.width, r.height)
-        return generateMask(image, rect)
+    private fun rectToBinary(image: BufferedImage, rect: Rect) : ByteArray {
+        return generateMask(image, rect.toShape())
     }
 
-    private fun polygonToBinary(image: BufferedImage, segmentation: Polygon) : ByteArray {
-        val polygon = java.awt.Polygon(segmentation.vertices.map { it.first.roundToInt() }.toIntArray(), segmentation.vertices.map { it.second.roundToInt() }.toIntArray(), segmentation.vertices.size)
-        return generateMask(image, polygon)
+    private fun polygonToBinary(image: BufferedImage, polygon: Polygon) : ByteArray {
+        return generateMask(image, polygon.toShape())
     }
 
-    private fun pathToBinary(image: BufferedImage, path: Path) : ByteArray {
-        return generateMask(image, path.path)
+    private fun pathToBinary(image: BufferedImage, path: SVGPath) : ByteArray {
+        return generateMask(image, path.shape)
     }
 
-    private fun splineToBinary(image: BufferedImage, polygon: Spline) : ByteArray {
-        var spline = BSpline(polygon.vertices.size.toLong(), 2, 3, BSpline.Type.Opened)
-        spline.controlPoints = polygon.vertices.flatMap { listOf(it.first, it.second) }
-        spline = spline.toBeziers()
-
-//        val spline = BSpline.interpolateCubicNatural(polygon.vertices.flatMap { listOf(it.first, it.second) }, 2).toBeziers()
-
-        val ctrlp = spline.controlPoints
-        val order = spline.order.toInt()
-        val dim = spline.dimension.toInt()
-        val nBeziers = (ctrlp.size / dim) / order
-        val path = Path2D.Double()
-        path.moveTo(ctrlp[0], ctrlp[1])
-        for (i in 0 until nBeziers) {
-            path.curveTo(
-                ctrlp[i * dim * order + 2], ctrlp[i * dim * order + 3],
-                ctrlp[i * dim * order + 4], ctrlp[i * dim * order + 5],
-                ctrlp[i * dim * order + 6], ctrlp[i * dim * order + 7]
-            )
-        }
-
-        return generateMask(image, path)
+    private fun splineToBinary(image: BufferedImage, spline: Spline) : ByteArray {
+        return generateMask(image, spline.path)
     }
 
     private fun generateMask(inputImage: BufferedImage, clippingShape: Shape) : ByteArray {

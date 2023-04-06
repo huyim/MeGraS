@@ -20,6 +20,7 @@ import org.megras.graphstore.MutableQuadSet
 import org.megras.id.ObjectId
 import org.megras.segmentation.*
 import org.megras.util.HashUtil
+import org.slf4j.LoggerFactory
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -30,55 +31,77 @@ import javax.sound.sampled.AudioSystem
 
 class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private val objectStore: FileSystemObjectStore) : GetRequestHandler {
 
+    private val logger = LoggerFactory.getLogger(this.javaClass)
+
     /**
-     * /{objectId}/segment/{segmentation}/<segmentDefinition>"
+     * /{objectId}/segment/{segmentation}/{segmentDefinition}"
      */
     override fun get(ctx: Context) {
 
+        val objectId = ctx.pathParam("objectId")
+        val segmentType = ctx.pathParam("segmentation")
+        val segmentDefinition = ctx.pathParam("segmentDefinition")
+        var nextSegmentPath: String? = null
+        val tail = ctx.pathParamMap()["tail"]
+        val currentPath = "$objectId/segment/$segmentType/$segmentDefinition"
+
         val lookInCache = ctx.queryParam("nocache") == null
 
-        val nextSegment = checkIfNextSegment(ctx.path())
+        val segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus(403, "invalid segmentation")
+        val segmentPath = "segment/$segmentType/$segmentDefinition"
 
-        val segmentationTypes = SegmentationUtil.parseSegmentationType(ctx.pathParam("segmentation"))
+        // check for an additional segmentation
+        if (ctx.pathParamMap().containsKey("nextSegmentation")) {
+            val nextSegmentType = ctx.pathParam("nextSegmentation")
+            val nextSegmentDefinition = ctx.pathParam("nextSegmentDefinition")
+            nextSegmentPath = "segment/$nextSegmentType/$nextSegmentDefinition"
 
-        if (segmentationTypes.any { it == null }) {
-            throw RestErrorStatus(403, "invalid segmentation type")
+            val nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus(403, "invalid segmentation")
+            val translatedNextSegment = SegmentationUtil.translate(nextSegmentation, segmentation)
+
+            // TODO: if two segmentations of the same type are not overlapping, no valid result can be computed
+
+            // if two segmentations are equivalent, discard the second one
+            if (SegmentationUtil.equivalent(segmentation, translatedNextSegment)) {
+                ctx.redirect("/$currentPath" + (if (tail != null) "/$tail" else ""))
+                return
+            }
+
+            // if the first segmentation contains the second one, directly apply the second one
+            if (SegmentationUtil.contains(segmentation, translatedNextSegment)) {
+                ctx.redirect("/$objectId/$translatedNextSegment" + (if (tail != null) "/$tail" else ""))
+                return
+            }
+
+            // reorder based on the segmentation types
+            if (SegmentationUtil.shouldSwap(segmentation.type, nextSegmentation.type)) {
+                ctx.redirect("/$objectId/$nextSegmentPath/$segmentPath" + (if (tail != null) "/$tail" else ""))
+                return
+            }
         }
-
-        val segmentations = SegmentationUtil.parseSegmentation(segmentationTypes.filterNotNull(), ctx.pathParam("segmentDefinition"))
-
-        if(segmentations.isEmpty()) {
-            throw RestErrorStatus(403, "invalid segmentation type")
-        }
-
 
         val canonicalId = quads.filter(
             setOf(ObjectId(ctx.pathParam("objectId"))),
             setOf(MeGraS.CANONICAL_ID.uri),
             null
         ).firstOrNull()?.`object` as? StringValue ?: throw RestErrorStatus.notFound
-
-
         val osId = StoredObjectId.of(canonicalId.value) ?: throw RestErrorStatus.notFound
-
         val storedObject = objectStore.get(osId) ?: throw RestErrorStatus.notFound
 
         //check cache
         if (lookInCache) {
-            quads.filter(listOf(LocalQuadValue(ctx.path())), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
+            quads.filter(listOf(LocalQuadValue(currentPath)), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
                 val cached = it.`object` as LocalQuadValue
-                ctx.redirect("/${cached.uri}")
-                println("found in cache")
+                ctx.redirect("/${cached.uri}" + (nextSegmentPath ?: ""))
+                logger.info("found $currentPath in cache: ${cached.uri}")
                 return
             }
         }
 
-        when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
+        val segment: ByteArray = when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
             MediaType.TEXT -> {
                 val text = storedObject.inputStream()
-                val segment = TextSegmenter.segment(text, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
-
-                storeSegment(segment, MimeType.TEXT, ctx, nextSegment)
+                TextSegmenter.segment(text, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
             }
 
             MediaType.IMAGE -> {
@@ -87,17 +110,17 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 val segment: BufferedImage?
                 var hash: String? = null
 
-                when(segmentations.first().type) {
+                when(segmentation.type) {
                     SegmentationType.CHANNEL -> {
-                        segment = ImageSegmenter.segmentChannel(img, segmentations.first() as Channel)
+                        segment = ImageSegmenter.segmentChannel(img, segmentation as Channel)
                     }
 
                     else -> {
-                        val mask = ImageSegmenter.toBinary(img, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                        val mask = ImageSegmenter.toBinary(img, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
                         hash = HashUtil.hashToBase64(mask.inputStream(), HashUtil.HashType.MD5)
 
-                        if (findInQuad(hash, ctx, nextSegment)) {
-                            println("found cached equivalent")
+                        if (findInQuad(hash, ctx, nextSegmentPath)) {
+                            logger.info("found cached equivalent")
                             return
                         }
 
@@ -107,60 +130,70 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
                 val out = ByteArrayOutputStream()
                 ImageIO.write(segment, "PNG", out)
-                val buf = out.toByteArray()
-
-                storeSegment(buf, MimeType.PNG, ctx, nextSegment, hash)
-
+                out.toByteArray()
             }
 
             MediaType.AUDIO -> {
-                val segment = AudioSegmenter.segment(storedObject, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                val segment = AudioSegmenter.segment(storedObject, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
 
                 val out = ByteArrayOutputStream()
                 AudioSystem.write(segment, AudioFileFormat.Type.WAVE, out)
-                val buf = out.toByteArray()
-
-                storeSegment(buf, MimeType.WAV, ctx, nextSegment)
+                out.toByteArray()
             }
 
             MediaType.VIDEO -> {
-
-                val segment = VideoSegmenter.segment(storedObject.byteChannel(), segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
-
-                storeSegment(segment.array(), MimeType.OGG, ctx, nextSegment)
+                val segment = VideoSegmenter.segment(storedObject.byteChannel(), segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                segment.array()
             }
 
             MediaType.DOCUMENT -> {
                 val pdf = PDDocument.load(storedObject.inputStream())
-                val segment = DocumentSegmenter.segment(pdf, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                val segment = DocumentSegmenter.segment(pdf, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
 
                 pdf.close()
                 val out = ByteArrayOutputStream()
                 segment.save(out)
                 segment.close()
-                val buf = out.toByteArray()
-
-                storeSegment(buf, MimeType.PDF, ctx, nextSegment)
+                out.toByteArray()
             }
 
             MediaType.MESH -> {
                 val obj = ObjReader.read(storedObject.inputStream())
-                val segment = MeshSegmenter.segment(obj, segmentations.first()) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                val segment = MeshSegmenter.segment(obj, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
 
                 val out = ByteArrayOutputStream()
                 ObjWriter.write(segment, out)
-                val buf = out.toByteArray()
-
-                storeSegment(buf, MimeType.OBJ, ctx, nextSegment)
+                out.toByteArray()
             }
 
             MediaType.UNKNOWN -> TODO()
             null -> TODO()
         }
 
+        val inStream = ByteArrayInputStream(segment)
 
-        //TODO("Not yet implemented")
+        val cachedObjectId = objectStore.idFromStream(inStream)
+        val descriptor = StoredObjectDescriptor(
+            cachedObjectId,
+            storedObject.descriptor.mimeType,
+            segment.size.toLong()
+        )
 
+        inStream.reset()
+        objectStore.store(inStream, descriptor)
+
+        val cacheId = HashUtil.hashToBase64("$segmentType/$segmentDefinition", HashUtil.HashType.MD5)
+        val cacheObject = LocalQuadValue("$objectId/c/$cacheId")
+
+        quads.add(Quad(cacheObject, MeGraS.CANONICAL_ID.uri, StringValue(descriptor.id.id)))
+        quads.add(Quad(cacheObject, MeGraS.SEGMENT_OF.uri, ObjectId(objectId)))
+        quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cacheObject))
+
+//        if (!hash.isNullOrEmpty()) {
+//            quads.add(Quad(LocalQuadValue(hash), SchemaOrg.SAME_AS.uri, cacheObject))
+//        }
+
+        ctx.redirect("/$currentPath" + (nextSegmentPath ?: ""))
     }
 
     private fun findInQuad(hash: String, ctx: Context, nextSegment: String?): Boolean {
@@ -174,46 +207,5 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             return true
         }
         return false
-    }
-
-    private fun storeSegment(segment: ByteArray, mimeType: MimeType, ctx: Context, nextSegment: String?, hash: String? = null) {
-        val objectId = ctx.pathParam("objectId")
-
-        val inStream = ByteArrayInputStream(segment)
-
-        val cachedObjectId = objectStore.idFromStream(inStream)
-        val descriptor = StoredObjectDescriptor(
-            cachedObjectId,
-            mimeType,
-            segment.size.toLong()
-        )
-
-        inStream.reset()
-        objectStore.store(inStream, descriptor)
-
-        val cacheId = HashUtil.hashToBase64("${ctx.pathParam("segmentation")}/${ctx.pathParam("segmentDefinition")}", HashUtil.HashType.MD5)
-        val cacheObject = LocalQuadValue("$objectId/c/$cacheId")
-
-        quads.add(Quad(cacheObject, MeGraS.CANONICAL_ID.uri, StringValue(descriptor.id.id)))
-        quads.add(Quad(cacheObject, MeGraS.SEGMENT_OF.uri, ObjectId(objectId)))
-
-        if (!hash.isNullOrEmpty()) {
-            quads.add(Quad(LocalQuadValue(hash), SchemaOrg.SAME_AS.uri, cacheObject))
-        }
-
-        if (nextSegment != null) {
-            quads.add(Quad(LocalQuadValue(ctx.path().replace("/$nextSegment", "")), SchemaOrg.SAME_AS.uri, cacheObject))
-            ctx.redirect("/${cacheObject.uri}/${nextSegment}")
-        } else {
-            quads.add(Quad(LocalQuadValue(ctx.path()), SchemaOrg.SAME_AS.uri, cacheObject))
-            ctx.redirect("/${cacheObject.uri}")
-        }
-    }
-
-    private fun checkIfNextSegment(path: String): String? {
-        val match = Regex("/.+/segment/.+/.+/(segment/.+)").find(path) ?: return null
-
-        val (nextSegment) = match.destructured
-        return nextSegment
     }
 }
