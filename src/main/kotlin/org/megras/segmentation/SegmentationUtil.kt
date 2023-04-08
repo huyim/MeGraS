@@ -2,6 +2,17 @@ package org.megras.segmentation
 
 object SegmentationUtil {
 
+    private val typeToClass = mapOf(
+        SegmentationType.TIME to SegmentationClass.TIME,
+        SegmentationType.RECT to SegmentationClass.SPACE,
+        SegmentationType.POLYGON to SegmentationClass.SPACE,
+        SegmentationType.PATH to SegmentationClass.SPACE,
+        SegmentationType.SPLINE to SegmentationClass.SPACE,
+        SegmentationType.PLANE to SegmentationClass.SPACE,
+        SegmentationType.RECT to SegmentationClass.SPACE,
+        SegmentationType.CHANNEL to SegmentationClass.REDUCE,
+    )
+
     fun equivalent(first: Segmentation, second: Segmentation): Boolean {
 
         if (first.type == second.type) {
@@ -151,6 +162,31 @@ object SegmentationUtil {
                     }
                     else -> false
                 }
+            }
+        }
+    }
+
+    fun overlaps(source: Segmentation, target: Segmentation): Boolean {
+        if (source.segmentClass != target.segmentClass) return false
+
+        return when (source.segmentClass) {
+            SegmentationClass.SPACE -> {
+                val sourceArea = (source as SpaceSegmentation).toArea()
+                val targetArea = (target as SpaceSegmentation).toArea()
+                sourceArea.intersect(targetArea)
+                sourceArea.isEmpty
+            }
+
+            SegmentationClass.TIME -> {
+                source as TimeSegmentation
+                target as TimeSegmentation
+                source.intersect(target)
+            }
+
+            SegmentationClass.REDUCE -> {
+                source as ReduceSegmentation
+                target as ReduceSegmentation
+                source.intersect(target)
             }
         }
     }

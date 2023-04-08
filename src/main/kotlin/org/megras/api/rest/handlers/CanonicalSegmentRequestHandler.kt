@@ -47,7 +47,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
         val lookInCache = ctx.queryParam("nocache") == null
 
-        val segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus(403, "invalid segmentation")
+        val segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
         val segmentPath = "segment/$segmentType/$segmentDefinition"
 
         // check for an additional segmentation
@@ -56,10 +56,13 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             val nextSegmentDefinition = ctx.pathParam("nextSegmentDefinition")
             nextSegmentPath = "segment/$nextSegmentType/$nextSegmentDefinition"
 
-            val nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus(403, "invalid segmentation")
+            val nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
             val translatedNextSegment = SegmentationUtil.translate(nextSegmentation, segmentation)
 
-            // TODO: if two segmentations of the same type are not overlapping, no valid result can be computed
+            // if two segmentations of the same type are not overlapping, no valid result can be computed
+            if (segmentation.segmentClass == nextSegmentation.segmentClass && !SegmentationUtil.overlaps(segmentation, translatedNextSegment)) {
+                throw RestErrorStatus.emptySegment
+            }
 
             // if two segmentations are equivalent, discard the second one
             if (SegmentationUtil.equivalent(segmentation, translatedNextSegment)) {
@@ -92,7 +95,11 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         if (lookInCache) {
             quads.filter(listOf(LocalQuadValue(currentPath)), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
                 val cached = it.`object` as LocalQuadValue
-                ctx.redirect("/${cached.uri}" + (nextSegmentPath ?: ""))
+                if (nextSegmentPath != null) {
+                    ctx.redirect("/${cached.uri}/$nextSegmentPath")
+                } else {
+                    ctx.redirect("/${cached.uri}")
+                }
                 logger.info("found $currentPath in cache: ${cached.uri}")
                 return
             }
@@ -101,7 +108,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         val segment: ByteArray = when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
             MediaType.TEXT -> {
                 val text = storedObject.inputStream()
-                TextSegmenter.segment(text, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                TextSegmenter.segment(text, segmentation) ?: throw RestErrorStatus.invalidSegmentation
             }
 
             MediaType.IMAGE -> {
@@ -116,7 +123,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                     }
 
                     else -> {
-                        val mask = ImageSegmenter.toBinary(img, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                        val mask = ImageSegmenter.toBinary(img, segmentation) ?: throw RestErrorStatus.invalidSegmentation
                         hash = HashUtil.hashToBase64(mask.inputStream(), HashUtil.HashType.MD5)
 
                         if (findInQuad(hash, ctx, nextSegmentPath)) {
@@ -134,7 +141,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             }
 
             MediaType.AUDIO -> {
-                val segment = AudioSegmenter.segment(storedObject, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                val segment = AudioSegmenter.segment(storedObject, segmentation) ?: throw RestErrorStatus.invalidSegmentation
 
                 val out = ByteArrayOutputStream()
                 AudioSystem.write(segment, AudioFileFormat.Type.WAVE, out)
@@ -142,13 +149,13 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             }
 
             MediaType.VIDEO -> {
-                val segment = VideoSegmenter.segment(storedObject.byteChannel(), segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                val segment = VideoSegmenter.segment(storedObject.byteChannel(), segmentation) ?: throw RestErrorStatus.invalidSegmentation
                 segment.array()
             }
 
             MediaType.DOCUMENT -> {
                 val pdf = PDDocument.load(storedObject.inputStream())
-                val segment = DocumentSegmenter.segment(pdf, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                val segment = DocumentSegmenter.segment(pdf, segmentation) ?: throw RestErrorStatus.invalidSegmentation
 
                 pdf.close()
                 val out = ByteArrayOutputStream()
@@ -159,7 +166,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
             MediaType.MESH -> {
                 val obj = ObjReader.read(storedObject.inputStream())
-                val segment = MeshSegmenter.segment(obj, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                val segment = MeshSegmenter.segment(obj, segmentation) ?: throw RestErrorStatus.invalidSegmentation
 
                 val out = ByteArrayOutputStream()
                 ObjWriter.write(segment, out)
@@ -193,7 +200,11 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 //            quads.add(Quad(LocalQuadValue(hash), SchemaOrg.SAME_AS.uri, cacheObject))
 //        }
 
-        ctx.redirect("/$currentPath" + (nextSegmentPath ?: ""))
+        if (nextSegmentPath != null) {
+            ctx.redirect("/$currentPath/$nextSegmentPath")
+        } else {
+            ctx.redirect("/$currentPath")
+        }
     }
 
     private fun findInQuad(hash: String, ctx: Context, nextSegment: String?): Boolean {

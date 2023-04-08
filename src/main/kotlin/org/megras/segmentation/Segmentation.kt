@@ -5,6 +5,7 @@ import org.megras.util.extensions.equalsEpsilon
 import org.tinyspline.BSpline
 import java.awt.Shape
 import java.awt.geom.AffineTransform
+import java.awt.geom.Area
 import java.awt.geom.Path2D
 import java.awt.geom.Rectangle2D
 import java.io.StringReader
@@ -13,9 +14,38 @@ import java.lang.Double.min
 import kotlin.math.roundToInt
 
 
-sealed class Segmentation(val type: SegmentationType)
+sealed interface Segmentation {
+    val type: SegmentationType
+    val segmentClass: SegmentationClass
+}
 
-data class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double, val zmin: Double = Double.NEGATIVE_INFINITY, val zmax: Double = Double.POSITIVE_INFINITY) : Segmentation(SegmentationType.RECT) {
+abstract class SpaceSegmentation : Segmentation {
+    override val segmentClass: SegmentationClass
+        get() = SegmentationClass.SPACE
+
+    abstract fun toShape() : Shape
+
+    fun toArea() : Area = Area(toShape())
+}
+
+abstract class TimeSegmentation : Segmentation {
+    override val segmentClass: SegmentationClass
+        get() = SegmentationClass.TIME
+
+    abstract fun intersect(rhs: TimeSegmentation): Boolean
+}
+
+abstract class ReduceSegmentation : Segmentation {
+    override val segmentClass: SegmentationClass
+        get() = SegmentationClass.REDUCE
+
+    abstract fun intersect(rhs: ReduceSegmentation): Boolean
+}
+
+class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double, val zmin: Double = Double.NEGATIVE_INFINITY, val zmax: Double = Double.POSITIVE_INFINITY) :
+    SpaceSegmentation() {
+
+    override val type: SegmentationType = SegmentationType.RECT
     constructor(x: Pair<Double, Double>, y: Pair<Double, Double>, z: Pair<Double, Double> = Pair(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)) : this(x.first, x.second, y.first, y.second, z.first, z.second)
     constructor(min: Triple<Double, Double, Double>, max: Triple<Double, Double, Double>) : this(min.first, max.first, min.second, max.second, min.third, max.third)
 
@@ -56,7 +86,7 @@ data class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: 
         )
     )
 
-    fun toShape() : Shape = Rectangle2D.Double(xmin, ymin, width, height)
+    override fun toShape() : Shape = Rectangle2D.Double(xmin, ymin, width, height)
 
     val width: Double
         get() = xmax - xmin
@@ -74,7 +104,10 @@ data class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: 
     fun move(dx: Double, dy: Double) : Rect = Rect(xmin + dx, xmax + dx, ymin + dy, ymax + dy)
 }
 
-data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(SegmentationType.POLYGON) {
+class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
+
+    override val type: SegmentationType = SegmentationType.POLYGON
+
     init {
         require(vertices.size > 2) {
             throw IllegalArgumentException ("A polygon needs at least 3 vertices")
@@ -140,7 +173,7 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
 
     }
 
-    fun toShape() : Shape = java.awt.Polygon(vertices.map { it.first.roundToInt() }.toIntArray(), vertices.map { it.second.roundToInt() }.toIntArray(), vertices.size)
+    override fun toShape() : Shape = java.awt.Polygon(vertices.map { it.first.roundToInt() }.toIntArray(), vertices.map { it.second.roundToInt() }.toIntArray(), vertices.size)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -168,7 +201,10 @@ data class Polygon(val vertices: List<Pair<Double, Double>>) : Segmentation(Segm
 
 }
 
-data class SVGPath(val shape: Shape) : Segmentation(SegmentationType.PATH) {
+class SVGPath(val shape: Shape) : SpaceSegmentation() {
+    override fun toShape(): Shape = shape
+
+    override val type: SegmentationType = SegmentationType.PATH
 
     constructor(path: String) : this(AWTPathProducer.createShape(StringReader(path), 0))
 
@@ -192,7 +228,10 @@ data class SVGPath(val shape: Shape) : Segmentation(SegmentationType.PATH) {
     }
 }
 
-data class Spline(val controlPoints: List<Pair<Double, Double>>, val path: Path2D) : Segmentation(SegmentationType.SPLINE) {
+class Spline(val controlPoints: List<Pair<Double, Double>>, val path: Path2D) : SpaceSegmentation() {
+    override fun toShape(): Shape = path
+
+    override val type: SegmentationType = SegmentationType.SPLINE
     companion object {
         operator fun invoke(controlPoints: List<Pair<Double, Double>>): Spline {
 
@@ -218,15 +257,26 @@ data class Spline(val controlPoints: List<Pair<Double, Double>>, val path: Path2
             return Spline(controlPoints, path)
         }
     }
-
-
 }
 
-data class Mask(val mask: ByteArray) : Segmentation(SegmentationType.MASK) {}
+class Mask(val mask: ByteArray) : Segmentation {
+    override val type: SegmentationType = SegmentationType.MASK
+    override val segmentClass: SegmentationClass = SegmentationClass.SPACE
+}
 
-data class Channel(val selection: List<String>) : Segmentation(SegmentationType.CHANNEL) {}
+class Channel(val selection: List<String>) : ReduceSegmentation() {
+    override val type: SegmentationType = SegmentationType.CHANNEL
 
-data class Time(val intervals: List<Pair<Int, Int>>) : Segmentation(SegmentationType.TIME) {
+    override fun intersect(rhs: ReduceSegmentation): Boolean {
+        if (rhs !is Channel) return false
+
+        return selection.intersect(rhs.selection).isNotEmpty()
+    }
+}
+
+class Time(val intervals: List<Pair<Int, Int>>) : TimeSegmentation() {
+
+    override val type: SegmentationType = SegmentationType.TIME
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -241,6 +291,12 @@ data class Time(val intervals: List<Pair<Int, Int>>) : Segmentation(Segmentation
     }
 
     override fun toString(): String = "segment/time/" + intervals.joinToString(",") { "${it.first},${it.second}" }
+
+    override fun intersect(rhs: TimeSegmentation): Boolean {
+        if (rhs !is Time) return false
+
+        return getTimePointsToSegment().intersect(rhs.getTimePointsToSegment()).isNotEmpty()
+    }
 
     fun move(dt: Int) : Time = Time(intervals.map { it.first + dt to it.second + dt })
 
@@ -264,4 +320,7 @@ data class Time(val intervals: List<Pair<Int, Int>>) : Segmentation(Segmentation
     }
 }
 
-data class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) : Segmentation(SegmentationType.PLANE) {}
+class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) : Segmentation {
+    override val type: SegmentationType = SegmentationType.PLANE
+    override val segmentClass: SegmentationClass = SegmentationClass.SPACE
+}
