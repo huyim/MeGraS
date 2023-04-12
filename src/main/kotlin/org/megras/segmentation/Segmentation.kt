@@ -23,9 +23,16 @@ abstract class SpaceSegmentation : Segmentation {
     override val segmentClass: SegmentationClass
         get() = SegmentationClass.SPACE
 
-    abstract fun toShape() : Shape
+    lateinit var shape: Shape
 
-    fun toArea() : Area = Area(toShape())
+    lateinit var area: Area
+
+    fun move(dx: Double, dy: Double): SpaceSegmentation {
+        val transform = AffineTransform()
+        transform.translate(dx, dy)
+        this.shape = transform.createTransformedShape(shape)
+        return this
+    }
 }
 
 abstract class TimeSegmentation : Segmentation {
@@ -42,12 +49,25 @@ abstract class ReduceSegmentation : Segmentation {
     abstract fun intersect(rhs: ReduceSegmentation): Boolean
 }
 
-class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double, val zmin: Double = Double.NEGATIVE_INFINITY, val zmax: Double = Double.POSITIVE_INFINITY) :
+class Rect(
+    val xmin: Double,
+    val xmax: Double,
+    val ymin: Double,
+    val ymax: Double,
+    val zmin: Double = Double.NEGATIVE_INFINITY,
+    val zmax: Double = Double.POSITIVE_INFINITY
+) :
     SpaceSegmentation() {
 
     override val type: SegmentationType = SegmentationType.RECT
+
     constructor(x: Pair<Double, Double>, y: Pair<Double, Double>, z: Pair<Double, Double> = Pair(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)) : this(x.first, x.second, y.first, y.second, z.first, z.second)
     constructor(min: Triple<Double, Double, Double>, max: Triple<Double, Double, Double>) : this(min.first, max.first, min.second, max.second, min.third, max.third)
+
+    init {
+        shape = Rectangle2D.Double(xmin, ymin, width, height)
+        area = Area(shape)
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -77,7 +97,7 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
 
     override fun toString(): String = "segment/rect/" + "$xmin,$xmax,$ymin,$ymax"
 
-    fun to2dPolygon() : Polygon = Polygon(
+    fun to2dPolygon(): Polygon = Polygon(
         listOf(
             xmin to ymin,
             xmax to ymin,
@@ -86,8 +106,6 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
         )
     )
 
-    override fun toShape() : Shape = Rectangle2D.Double(xmin, ymin, width, height)
-
     val width: Double
         get() = xmax - xmin
 
@@ -95,13 +113,18 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
         get() = ymax - ymin
 
 
-    fun clip(xmin: Double, xmax: Double, ymin: Double, ymax: Double, zmin: Double = Double.NEGATIVE_INFINITY, zmax: Double = Double.POSITIVE_INFINITY): Rect = Rect(
+    fun clip(
+        xmin: Double,
+        xmax: Double,
+        ymin: Double,
+        ymax: Double,
+        zmin: Double = Double.NEGATIVE_INFINITY,
+        zmax: Double = Double.POSITIVE_INFINITY
+    ): Rect = Rect(
         max(this.xmin, xmin), min(this.xmax, xmax),
         max(this.ymin, ymin), min(this.ymax, ymax),
         max(this.zmin, zmin), min(this.zmax, zmax)
     )
-
-    fun move(dx: Double, dy: Double) : Rect = Rect(xmin + dx, xmax + dx, ymin + dy, ymax + dy)
 }
 
 class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
@@ -110,8 +133,13 @@ class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
 
     init {
         require(vertices.size > 2) {
-            throw IllegalArgumentException ("A polygon needs at least 3 vertices")
+            throw IllegalArgumentException("A polygon needs at least 3 vertices")
         }
+        shape = java.awt.Polygon(vertices.map { it.first.roundToInt() }.toIntArray(),
+            vertices.map { it.second.roundToInt() }.toIntArray(),
+            vertices.size
+        )
+        area = Area(shape)
     }
 
     fun isConvex(): Boolean {
@@ -148,14 +176,14 @@ class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
         return Rect(xmin, xmax, ymin, ymax)
     }
 
-    val xmin : Double = vertices.minOf { it.first }
+    val xmin: Double = vertices.minOf { it.first }
 
-    val ymin : Double = vertices.minOf { it.second }
+    val ymin: Double = vertices.minOf { it.second }
 
     /**
      * Converts [Polygon] into equivalent 2d [Rect] in case it exists
      */
-    fun toRect() : Rect? {
+    fun toRect(): Rect? {
 
         val verts = this.vertices.toSet()
 
@@ -172,8 +200,6 @@ class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
         return null
 
     }
-
-    override fun toShape() : Shape = java.awt.Polygon(vertices.map { it.first.roundToInt() }.toIntArray(), vertices.map { it.second.roundToInt() }.toIntArray(), vertices.size)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -196,17 +222,16 @@ class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
     }
 
     override fun toString(): String = "segment/polygon/" + vertices.joinToString(",") { "(${it.first},${it.second})" }
-
-    fun move(dx: Double, dy: Double) : Polygon = Polygon(vertices.map { it.first + dx to it.second + dy })
-
 }
 
-class SVGPath(val shape: Shape) : SpaceSegmentation() {
-    override fun toShape(): Shape = shape
+class SVGPath(path: String) : SpaceSegmentation() {
 
     override val type: SegmentationType = SegmentationType.PATH
 
-    constructor(path: String) : this(AWTPathProducer.createShape(StringReader(path), 0))
+    init {
+        shape = AWTPathProducer.createShape(StringReader(path), 0)
+        area = Area(shape)
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -220,42 +245,33 @@ class SVGPath(val shape: Shape) : SpaceSegmentation() {
     override fun hashCode(): Int {
         return shape.hashCode()
     }
-
-    fun move(dx: Double, dy: Double) : SVGPath {
-        val transform = AffineTransform()
-        transform.translate(dx, dy)
-        return SVGPath(transform.createTransformedShape(shape))
-    }
 }
 
-class Spline(val controlPoints: List<Pair<Double, Double>>, val path: Path2D) : SpaceSegmentation() {
-    override fun toShape(): Shape = path
-
+class Spline(controlPoints: List<Pair<Double, Double>>) : SpaceSegmentation() {
     override val type: SegmentationType = SegmentationType.SPLINE
-    companion object {
-        operator fun invoke(controlPoints: List<Pair<Double, Double>>): Spline {
 
-            var spline = BSpline(controlPoints.size.toLong(), 2, 3, BSpline.Type.Opened)
-            spline.controlPoints = controlPoints.flatMap { listOf(it.first, it.second) }
-            spline = spline.toBeziers()
-//            val spline = BSpline.interpolateCubicNatural(polygon.vertices.flatMap { listOf(it.first, it.second) }, 2).toBeziers()
+    init {
+        var spline = BSpline(controlPoints.size.toLong(), 2, 3, BSpline.Type.Opened)
+        spline.controlPoints = controlPoints.flatMap { listOf(it.first, it.second) }
+        spline = spline.toBeziers()
+//        val spline = BSpline.interpolateCubicNatural(polygon.vertices.flatMap { listOf(it.first, it.second) }, 2).toBeziers()
 
-            val ctrlp = spline.controlPoints
-            val order = spline.order.toInt()
-            val dim = spline.dimension.toInt()
-            val nBeziers = (ctrlp.size / dim) / order
-            val path = Path2D.Double()
-            path.moveTo(ctrlp[0], ctrlp[1])
-            for (i in 0 until nBeziers) {
-                path.curveTo(
-                    ctrlp[i * dim * order + 2], ctrlp[i * dim * order + 3],
-                    ctrlp[i * dim * order + 4], ctrlp[i * dim * order + 5],
-                    ctrlp[i * dim * order + 6], ctrlp[i * dim * order + 7]
-                )
-            }
-
-            return Spline(controlPoints, path)
+        val ctrlp = spline.controlPoints
+        val order = spline.order.toInt()
+        val dim = spline.dimension.toInt()
+        val nBeziers = (ctrlp.size / dim) / order
+        val path = Path2D.Double()
+        path.moveTo(ctrlp[0], ctrlp[1])
+        for (i in 0 until nBeziers) {
+            path.curveTo(
+                ctrlp[i * dim * order + 2], ctrlp[i * dim * order + 3],
+                ctrlp[i * dim * order + 4], ctrlp[i * dim * order + 5],
+                ctrlp[i * dim * order + 6], ctrlp[i * dim * order + 7]
+            )
         }
+
+        shape = path
+        area = Area(shape)
     }
 }
 
@@ -298,13 +314,13 @@ class Time(val intervals: List<Pair<Int, Int>>) : TimeSegmentation() {
         return getTimePointsToSegment().intersect(rhs.getTimePointsToSegment()).isNotEmpty()
     }
 
-    fun move(dt: Int) : Time = Time(intervals.map { it.first + dt to it.second + dt })
+    fun move(dt: Int): Time = Time(intervals.map { it.first + dt to it.second + dt })
 
-    fun getTimePointsToSegment() : List<Int> {
+    fun getTimePointsToSegment(): List<Int> {
         return intervals.flatMap { i -> (i.first until i.second).map { j -> j } }
     }
 
-    fun getTimePointsToDiscard(start: Int, end: Int) : List<Int> {
+    fun getTimePointsToDiscard(start: Int, end: Int): List<Int> {
         val keep = getTimePointsToSegment().sorted()
         var sweeper = 0
 
@@ -323,4 +339,9 @@ class Time(val intervals: List<Pair<Int, Int>>) : TimeSegmentation() {
 class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) : Segmentation {
     override val type: SegmentationType = SegmentationType.PLANE
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
+}
+
+class SpaceTime() : Segmentation {
+    override val type: SegmentationType = SegmentationType.SPACETIME
+    override val segmentClass: SegmentationClass = SegmentationClass.SPACETIME
 }

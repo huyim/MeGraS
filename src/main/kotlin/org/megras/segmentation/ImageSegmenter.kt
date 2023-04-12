@@ -1,22 +1,18 @@
 package org.megras.segmentation
 
-import org.tinyspline.BSpline
 import java.awt.Color
 import java.awt.Shape
-import java.awt.geom.Path2D
-import java.awt.geom.Rectangle2D
 import java.awt.image.BufferedImage
-import kotlin.math.roundToInt
 
 
 object ImageSegmenter {
 
     fun toBinary(image: BufferedImage, segmentation: Segmentation): ByteArray? = try {
         when (segmentation.type) {
-            SegmentationType.RECT -> rectToBinary(image, segmentation as Rect)
-            SegmentationType.POLYGON -> polygonToBinary(image, segmentation as Polygon)
-            SegmentationType.PATH -> pathToBinary(image, segmentation as SVGPath)
-            SegmentationType.SPLINE -> splineToBinary(image, segmentation as Spline)
+            SegmentationType.RECT,
+            SegmentationType.POLYGON,
+            SegmentationType.PATH,
+            SegmentationType.SPLINE -> shapeToBinary(image, (segmentation as SpaceSegmentation).shape)
             SegmentationType.MASK -> (segmentation as Mask).mask
             else -> null
         }
@@ -61,20 +57,8 @@ object ImageSegmenter {
         }
     }
 
-    private fun rectToBinary(image: BufferedImage, rect: Rect) : ByteArray {
-        return generateMask(image, rect.toShape())
-    }
-
-    private fun polygonToBinary(image: BufferedImage, polygon: Polygon) : ByteArray {
-        return generateMask(image, polygon.toShape())
-    }
-
-    private fun pathToBinary(image: BufferedImage, path: SVGPath) : ByteArray {
-        return generateMask(image, path.shape)
-    }
-
-    private fun splineToBinary(image: BufferedImage, spline: Spline) : ByteArray {
-        return generateMask(image, spline.path)
+    private fun shapeToBinary(image: BufferedImage, shape: Shape) : ByteArray {
+        return generateMask(image, shape)
     }
 
     private fun generateMask(inputImage: BufferedImage, clippingShape: Shape) : ByteArray {
@@ -97,7 +81,6 @@ object ImageSegmenter {
                 }
             }
         }
-        val x = mask.groupBy { it }.map { "${it.key} : ${it.value.size}" }
         return mask
     }
 
