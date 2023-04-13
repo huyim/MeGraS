@@ -6,8 +6,9 @@ enum class MeGraS(suffix: String) {
 
     RAW_ID("rawId"),
     MEDIA_TYPE("mediaType"),
-    MIME_TYPE("mimeType"),
+    RAW_MIME_TYPE("rawMimeType"),
     CANONICAL_ID("canonicalId"), //raw id of canonical representation
+    CANONICAL_MIME_TYPE("canonicalMimeType"),
     FILE_NAME("fileName"),
     SEGMENT_OF("segmentOf")
     ;
