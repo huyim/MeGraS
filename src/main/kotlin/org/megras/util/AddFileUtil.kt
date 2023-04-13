@@ -15,6 +15,7 @@ import org.megras.data.schema.MeGraS
 import org.megras.graphstore.MutableQuadSet
 import org.megras.id.IdUtil
 import org.megras.id.ObjectId
+import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
@@ -48,10 +49,10 @@ object AddFileUtil {
         return when (rawDescriptor.mimeType) {
 
             //images to keep
-            MimeType.JPEG_I,
             MimeType.PNG -> rawDescriptor
 
             //images to transform
+            MimeType.JPEG_I,
             MimeType.BMP,
             MimeType.GIF,
             MimeType.SVG,
@@ -59,8 +60,14 @@ object AddFileUtil {
 
                 try {
                     val buffered = ImageIO.read(objectStore.get(rawDescriptor.id)!!.inputStream())
+
+                    val rgbaImage = BufferedImage(buffered.width, buffered.height, BufferedImage.TYPE_INT_ARGB)
+                    val g = rgbaImage.createGraphics()
+                    g.drawImage(buffered, 0, 0, null)
+                    g.dispose()
+
                     val outStream = ByteArrayOutputStream()
-                    ImageIO.write(buffered, "PNG", outStream)
+                    ImageIO.write(rgbaImage, "PNG", outStream)
 
                     val buf = outStream.toByteArray()
                     val inStream = ByteArrayInputStream(buf)
