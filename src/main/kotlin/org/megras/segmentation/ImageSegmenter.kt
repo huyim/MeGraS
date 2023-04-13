@@ -12,7 +12,8 @@ object ImageSegmenter {
             SegmentationType.RECT,
             SegmentationType.POLYGON,
             SegmentationType.PATH,
-            SegmentationType.SPLINE -> shapeToBinary(image, (segmentation as SpaceSegmentation).shape)
+            SegmentationType.BEZIER,
+            SegmentationType.BSPLINE -> shapeToBinary(image, (segmentation as SpaceSegmentation).shape)
             SegmentationType.MASK -> (segmentation as Mask).mask
             else -> null
         }

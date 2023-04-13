@@ -16,7 +16,8 @@ object VideoSegmenter {
         when(segmentation.type) {
             SegmentationType.RECT -> segmentRect(videoStream, segmentation as Rect)
             SegmentationType.POLYGON,
-            SegmentationType.SPLINE,
+            SegmentationType.BEZIER,
+            SegmentationType.BSPLINE,
             SegmentationType.PATH,
             SegmentationType.MASK,
             SegmentationType.TRANSITION -> segmentShape(videoStream, segmentation)

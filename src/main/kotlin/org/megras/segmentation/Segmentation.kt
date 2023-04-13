@@ -247,32 +247,65 @@ class SVGPath(path: String) : SpaceSegmentation() {
     }
 }
 
-class Spline(controlPoints: List<Pair<Double, Double>>) : SpaceSegmentation() {
-    override val type: SegmentationType = SegmentationType.SPLINE
+class Spline(splineType: SegmentationType, controlPoints: List<Pair<Double, Double>>) : SpaceSegmentation() {
+    override val type: SegmentationType = splineType
 
     init {
-        var spline = BSpline(controlPoints.size.toLong(), 2, 3, BSpline.Type.Opened)
-        spline.controlPoints = controlPoints.flatMap { listOf(it.first, it.second) }
-        spline = spline.toBeziers()
-//        val spline = BSpline.interpolateCubicNatural(polygon.vertices.flatMap { listOf(it.first, it.second) }, 2).toBeziers()
+        when (type) {
+            SegmentationType.BEZIER -> initBezierSpline(controlPoints)
+            SegmentationType.BSPLINE -> initBSpline(controlPoints)
+            else -> {}
+        }
+    }
 
-        val ctrlp = spline.controlPoints
-        val order = spline.order.toInt()
-        val dim = spline.dimension.toInt()
-        val nBeziers = (ctrlp.size / dim) / order
+    private fun initBezierSpline(controlPoints: List<Pair<Double, Double>>) {
+        val flattenedControlPoints = controlPoints.flatMap { listOf(it.first, it.second) }
+        val nBeziers = (controlPoints.size - 1) / 3
+
         val path = Path2D.Double()
-        path.moveTo(ctrlp[0], ctrlp[1])
+        path.moveTo(flattenedControlPoints[0], flattenedControlPoints[1])
         for (i in 0 until nBeziers) {
             path.curveTo(
-                ctrlp[i * dim * order + 2], ctrlp[i * dim * order + 3],
-                ctrlp[i * dim * order + 4], ctrlp[i * dim * order + 5],
-                ctrlp[i * dim * order + 6], ctrlp[i * dim * order + 7]
+                flattenedControlPoints[i * 6 + 2], flattenedControlPoints[i * 6 + 3],
+                flattenedControlPoints[i * 6 + 4], flattenedControlPoints[i * 6 + 5],
+                flattenedControlPoints[i * 6 + 6], flattenedControlPoints[i * 6 + 7]
             )
         }
 
         shape = path
         area = Area(shape)
     }
+
+    private fun initBSpline(controlPoints: List<Pair<Double, Double>>) {
+        val degree: Long = 3
+
+        // To close B-Splines, one can wrap p control points, where p is the curve degree
+        // for details, see https://pages.mtu.edu/~shene/COURSES/cs3621/NOTES/spline/B-spline/bspline-curve-closed.html
+        var spline = BSpline(controlPoints.size.toLong() + degree, 2, degree, BSpline.Type.Opened)
+        val controlPointList = controlPoints.flatMap { listOf(it.first, it.second) }
+        val repeatPoints = controlPoints.subList(0, 3).flatMap { listOf(it.first, it.second) }
+        val closedPoints = controlPointList.plus(repeatPoints)
+        spline.controlPoints = closedPoints
+        spline = spline.toBeziers()
+
+        val points = spline.controlPoints
+        val nBeziers = points.size / spline.order.toInt() / spline.dimension.toInt()
+        val pointsPerBezier = points.size / nBeziers
+
+        val path = Path2D.Double()
+        path.moveTo(points[0], points[1])
+        for (i in 0 until nBeziers) {
+            path.curveTo(
+                points[i * pointsPerBezier + 2], points[i * pointsPerBezier + 3],
+                points[i * pointsPerBezier + 4], points[i * pointsPerBezier + 5],
+                points[i * pointsPerBezier + 6], points[i * pointsPerBezier + 7]
+            )
+        }
+
+        shape = path
+        area = Area(shape)
+    }
+
 }
 
 class Mask(val mask: ByteArray) : Segmentation {

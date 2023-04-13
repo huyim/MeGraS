@@ -18,7 +18,9 @@ enum class SegmentationType {
      */
     PATH,
 
-    SPLINE,
+    BSPLINE,
+
+    BEZIER,
 
     /**
      * Binary mask for each pixel
@@ -33,6 +35,11 @@ enum class SegmentationType {
      * 3D plane specified as a,b,c,d,above
      * such that the plane is defined as ax + by + cz + d = 0 and 'above' indicates which side of the plane to keep
      */
-    PLANE
+    PLANE,
+
+    /**
+     * space-time transition of polygonal shape
+     */
+    TRANSITION
 
 }

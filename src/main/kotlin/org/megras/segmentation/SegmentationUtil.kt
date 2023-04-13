@@ -196,7 +196,7 @@ object SegmentationUtil {
                 }
             }
 
-            SegmentationType.SPLINE -> {
+            SegmentationType.BEZIER, SegmentationType.BSPLINE -> {
 
                 val points = segmentDefinition.split("),").map { chunk ->
                     val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
@@ -212,7 +212,7 @@ object SegmentationUtil {
                 val finalPoints = points.filterNotNull()
 
                 if (finalPoints.size == points.size) {
-                    Spline(finalPoints)
+                    Spline(type, finalPoints)
                 } else {
                     null
                 }
