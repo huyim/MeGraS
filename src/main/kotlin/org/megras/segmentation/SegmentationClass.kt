@@ -6,6 +6,8 @@ enum class SegmentationClass {
 
     TIME,
 
+    SPACETIME,
+
     REDUCE,
 
 }

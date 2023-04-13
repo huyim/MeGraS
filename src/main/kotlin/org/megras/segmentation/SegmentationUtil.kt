@@ -275,6 +275,37 @@ object SegmentationUtil {
                 }
             }
 
+            /**
+             * t0,(x,y),(x,y),...,(x,y),t1,(x,y),(x,y),...,(x,y),...,tn,(x,y),(x,y),...,(x,y)
+             */
+            SegmentationType.TRANSITION -> {
+
+                val parts = segmentDefinition.split(Regex("(?<=\\))(,)?(?=\\d)"))
+                val points = mutableListOf<Pair<Int, Polygon>>()
+
+                parts.forEach { part ->
+                    val p = part.split(",(").flatMap { it.split("),")}.map { it.replace(")", "") }
+                    val frame = p[0].toIntOrNull()
+                    val vertices = p.subList(1, p.size).map { chunk ->
+                        val coords = chunk.split(",").map { it.toDoubleOrNull() }
+                        if (coords.any { it == null }) {
+                            null
+                        } else if (coords.size < 2) {
+                            null
+                        } else {
+                            coords[0]!! to coords[1]!!
+                        }
+                    }
+                    val finalVertices = vertices.filterNotNull()
+                    if (frame != null && vertices.size == finalVertices.size) {
+                        points.add(frame to Polygon(finalVertices))
+                    } else {
+                        return null
+                    }
+                }
+                Transition(points)
+            }
+
             else -> null
         }
     }

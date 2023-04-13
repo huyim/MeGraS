@@ -18,7 +18,8 @@ object VideoSegmenter {
             SegmentationType.POLYGON,
             SegmentationType.SPLINE,
             SegmentationType.PATH,
-            SegmentationType.MASK -> segmentShape(videoStream, segmentation)
+            SegmentationType.MASK,
+            SegmentationType.TRANSITION -> segmentShape(videoStream, segmentation)
             SegmentationType.TIME -> segmentTime(videoStream, segmentation as Time)
             SegmentationType.CHANNEL -> segmentChannel(videoStream, segmentation as Channel)
             else -> null
@@ -54,13 +55,21 @@ object VideoSegmenter {
             .addOutput(
                 FrameOutput.withConsumerAlpha(
                     object : FrameConsumer {
+                        private var frameCounter = 0
                         override fun consumeStreams(streams: List<Stream?>?) {}
 
                         override fun consume(frame: Frame?) {
                             if (frame != null) {
-                                val segmentMask = ImageSegmenter.toBinary(frame.image, segmentation) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                                val seg = if (segmentation is Transition) {
+                                    segmentation.interpolatePolygon(frameCounter)
+                                } else {
+                                    segmentation
+                                }
+                                if (seg == null) return
+                                val segmentMask = ImageSegmenter.toBinary(frame.image, seg) ?: throw RestErrorStatus(403, "Invalid segmentation")
                                 val segmentedImage = ImageSegmenter.segment(frame.image, segmentMask, BufferedImage.TYPE_4BYTE_ABGR) ?: throw RestErrorStatus(403, "Invalid segmentation")
                                 images.add(segmentedImage)
+                                frameCounter++
                             }
                         }
                     }

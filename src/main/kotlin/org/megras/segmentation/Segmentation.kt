@@ -341,7 +341,44 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
 }
 
-class SpaceTime() : Segmentation {
-    override val type: SegmentationType = SegmentationType.SPACETIME
+class Transition(val points: List<Pair<Int, Polygon>>) : Segmentation {
+    override val type: SegmentationType = SegmentationType.TRANSITION
     override val segmentClass: SegmentationClass = SegmentationClass.SPACETIME
+
+    init {
+        require(points.size >= 2) {
+            throw IllegalArgumentException("Need at least two transition points.")
+        }
+        val size = points[0].second.vertices.size
+        require(points.all { it.second.vertices.size == size }) {
+            throw IllegalArgumentException("Starting and ending polygon have a different number of vertices.")
+        }
+    }
+
+    fun interpolatePolygon(frame: Int): Polygon? {
+        if (frame < points.first().first || frame > points.last().first) return null
+
+        val endIndex = points.indexOfFirst { it.first >= frame }
+        val (endFrame, endPolygon) = points[endIndex]
+        if (frame == endFrame) return endPolygon
+
+        val startIndex = endIndex - 1
+        val (startFrame, startPolygon) = points[startIndex]
+        if (frame == startFrame) return startPolygon
+
+        val t = (frame - startFrame).toDouble() / (endFrame - startFrame)
+
+        val newVertices = mutableListOf<Pair<Double, Double>>()
+
+        for (v in 0 until startPolygon.vertices.size) {
+            val sv = startPolygon.vertices[v]
+            val ev = endPolygon.vertices[v]
+
+            val x = sv.first + t * (ev.first - sv.first)
+            val y = sv.second + t * (ev.second - sv.second)
+
+            newVertices.add(Pair(x, y))
+        }
+        return Polygon(newVertices)
+    }
 }
