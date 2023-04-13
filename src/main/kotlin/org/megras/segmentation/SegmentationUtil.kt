@@ -2,17 +2,6 @@ package org.megras.segmentation
 
 object SegmentationUtil {
 
-    private val typeToClass = mapOf(
-        SegmentationType.TIME to SegmentationClass.TIME,
-        SegmentationType.RECT to SegmentationClass.SPACE,
-        SegmentationType.POLYGON to SegmentationClass.SPACE,
-        SegmentationType.PATH to SegmentationClass.SPACE,
-        SegmentationType.SPLINE to SegmentationClass.SPACE,
-        SegmentationType.PLANE to SegmentationClass.SPACE,
-        SegmentationType.RECT to SegmentationClass.SPACE,
-        SegmentationType.CHANNEL to SegmentationClass.REDUCE,
-    )
-
     fun equivalent(first: Segmentation, second: Segmentation): Boolean {
 
         if (first.type == second.type) {
@@ -22,37 +11,13 @@ object SegmentationUtil {
             return equivalent(second, first)
         }
 
-        return when (first.type) {
-            SegmentationType.RECT -> {
-                first as Rect
-                when (second.type) {
-                    SegmentationType.POLYGON -> {
-                        second as Polygon
-                        second.toRect() == first
-                    }
-                    SegmentationType.PATH -> {
-                        second as SVGPath
-                        first.toShape() == second.shape
-                    }
-                    else -> false
-                }
-            }
-            SegmentationType.POLYGON -> {
-                first as Polygon
-                when (second.type) {
-                    SegmentationType.PATH -> {
-                        second as SVGPath
-                        first.toShape() == second.shape
-                    }
-                    else -> false
-                }
-            }
-            SegmentationType.PATH -> {
-                first as SVGPath
-                when (second.type) {
-                    SegmentationType.SPLINE -> {
-                        second as Spline
-                        first.shape == second.path
+        return when (first.segmentClass) {
+            SegmentationClass.SPACE -> {
+                first as SpaceSegmentation
+                when (second.segmentClass) {
+                    SegmentationClass.SPACE -> {
+                        second as SpaceSegmentation
+                        first.area == second.area
                     }
                     else -> false
                 }
@@ -65,84 +30,46 @@ object SegmentationUtil {
     fun contains(source: Segmentation, target: Segmentation): Boolean {
 
         return when(source.type) {
-            SegmentationType.RECT -> {
-                source as Rect
+            SegmentationType.RECT, SegmentationType.POLYGON, SegmentationType.PATH, SegmentationType.BEZIER, SegmentationType.BSPLINE -> {
+                source as SpaceSegmentation
                 when (target.type) {
-                    SegmentationType.RECT -> {
-                        target as Rect
-                        source.xmin <= target.xmin && source.xmax >= target.xmax &&
-                                source.ymin <= target.ymin && source.ymax >= target.ymax
-                    }
-                    SegmentationType.POLYGON -> {
-                        val targetBound = (target as Polygon).boundingRect()
-                        source.xmin <= targetBound.xmin && source.xmax >= targetBound.xmax &&
-                                source.ymin <= targetBound.ymin && source.ymax >= targetBound.ymax
-                    }
-                    SegmentationType.PATH -> {
-                        val targetBound = (target as SVGPath).shape.bounds
-                        source.xmin <= targetBound.minX && source.xmax >= targetBound.maxX &&
-                                source.ymin <= targetBound.minY && source.ymax >= targetBound.maxX
-                    }
-                    SegmentationType.SPLINE -> {
-                        val targetBound = (target as Spline).path.bounds
-                        source.xmin <= targetBound.minX && source.xmax >= targetBound.maxX &&
-                                source.ymin <= targetBound.minY && source.ymax >= targetBound.maxX
+                    SegmentationType.RECT, SegmentationType.POLYGON, SegmentationType.PATH, SegmentationType.BEZIER, SegmentationType.BSPLINE -> {
+                        target as SpaceSegmentation
+                        target.area.subtract(source.area)
+                        target.area.isEmpty
                     }
                     else -> false
                 }
             }
-            SegmentationType.POLYGON -> {
-                source as Polygon
+            SegmentationType.PLANE -> {
+                source as Plane
                 when (target.type) {
-                    SegmentationType.RECT -> {
-                        target as Rect
-                        val s = source.boundingRect()
-                        s.xmin <= target.xmin && s.xmax >= target.xmax && s.ymin <= target.ymin && s.ymax >= target.ymax
+                    SegmentationType.PLANE -> {
+                        target as Plane
+                        source.a == target.a && source.b == target.b && source.c == target.c && source.above == target.above
                     }
-                    SegmentationType.POLYGON -> {
-                        target as Polygon
-                        val sourceShape = source.toShape()
-                        if (source.isConvex()) {
-                            target.vertices.all { sourceShape.contains(it.first, it.second) }
+                    else -> false
+                }
+            }
+            SegmentationType.MASK -> {
+                source as Mask
+                when (target.type) {
+                    SegmentationType.MASK -> {
+                        target as Mask
+                        if (source.mask.size != target.mask.size) {
+                            false
                         } else {
-                            var intersect = false
-                            for (i in 0 until source.vertices.size) {
-                                val p1 = source.vertices[i]
-                                val p2 = source.vertices[(i + 1) % source.vertices.size]
-                                for (j in 0 until target.vertices.size) {
-                                    val p3 = target.vertices[i]
-                                    val p4 = target.vertices[(i + 1) % target.vertices.size]
-                                    intersect = intersect || doLinesIntersect(p1.first, p1.second, p2.first, p2.second, p3.first, p3.second, p4.first, p4.second)
-                                    if (intersect) break
+                            for (i in 0 until source.mask.size) {
+                                if (target.mask[i].compareTo(1) == 0 && source.mask[i].compareTo(0) == 0) {
+                                    return false
                                 }
                             }
-                            !intersect && sourceShape.contains(target.vertices[0].first, target.vertices[0].second)
+                            true
                         }
                     }
-                    SegmentationType.PATH -> {
-                        target as SVGPath
-                        TODO()
-                    }
-                    SegmentationType.SPLINE -> {
-                        target as Polygon
-                        TODO()
-                    }
                     else -> false
                 }
             }
-            SegmentationType.PATH -> {
-                source as SVGPath
-                when (target.type) {
-                    SegmentationType.SPLINE -> {
-                        target as Polygon
-                        TODO()
-                    }
-                    else -> false
-                }
-            }
-            SegmentationType.SPLINE -> false
-            SegmentationType.PLANE -> false
-            SegmentationType.MASK -> false
             SegmentationType.CHANNEL -> {
                 source as Channel
                 when (target.type) {
@@ -163,6 +90,7 @@ object SegmentationUtil {
                     else -> false
                 }
             }
+            else -> false
         }
     }
 
@@ -171,10 +99,10 @@ object SegmentationUtil {
 
         return when (source.segmentClass) {
             SegmentationClass.SPACE -> {
-                val sourceArea = (source as SpaceSegmentation).toArea()
-                val targetArea = (target as SpaceSegmentation).toArea()
-                sourceArea.intersect(targetArea)
-                sourceArea.isEmpty
+                source as SpaceSegmentation
+                target as SpaceSegmentation
+                source.area.intersect(target.area)
+                source.area.isEmpty
             }
 
             SegmentationClass.TIME -> {
@@ -188,32 +116,22 @@ object SegmentationUtil {
                 target as ReduceSegmentation
                 source.intersect(target)
             }
+            else -> false
         }
     }
 
     fun translate(segmentation: Segmentation, by: Segmentation): Segmentation {
-        return when (by.type) {
-            SegmentationType.RECT -> {
-                by as Rect
-                when (segmentation.type) {
-                    SegmentationType.RECT -> (segmentation as Rect).move(by.xmin, by.ymin)
-                    SegmentationType.POLYGON -> (segmentation as Polygon).move(by.xmin, by.ymin)
-                    SegmentationType.PATH -> (segmentation as SVGPath).move(by.xmin, by.ymin)
-                    SegmentationType.SPLINE -> (segmentation as Polygon).move(by.xmin, by.ymin)
+        return when (by.segmentClass) {
+            SegmentationClass.SPACE -> {
+                by as SpaceSegmentation
+                when (segmentation.segmentClass) {
+                    SegmentationClass.SPACE -> {
+                        (segmentation as SpaceSegmentation).move(by.area.bounds.minX, by.area.bounds.minY)
+                    }
                     else -> segmentation
                 }
             }
-            SegmentationType.POLYGON, SegmentationType.SPLINE -> {
-                by as Polygon
-                when (segmentation.type) {
-                    SegmentationType.RECT -> (segmentation as Rect).move(by.xmin, by.xmin)
-                    SegmentationType.POLYGON -> (segmentation as Polygon).move(by.xmin, by.ymin)
-                    SegmentationType.PATH -> (segmentation as SVGPath).move(by.xmin, by.ymin)
-                    SegmentationType.SPLINE -> (segmentation as Polygon).move(by.xmin, by.ymin)
-                    else -> segmentation
-                }
-            }
-            SegmentationType.TIME -> {
+            SegmentationClass.TIME -> {
                 by as Time
                 (segmentation as Time).move(by.intervals[0].first)
             }
@@ -235,7 +153,8 @@ object SegmentationUtil {
 
     fun parseSegmentation(segmentType: String, segmentDefinition: String): Segmentation? {
 
-        return when (parseSegmentationType(segmentType)) {
+        val type = parseSegmentationType(segmentType)
+        return when (type) {
             SegmentationType.RECT -> {
 
                 val coords = segmentDefinition.split(",").mapNotNull {
@@ -358,25 +277,5 @@ object SegmentationUtil {
 
             else -> null
         }
-    }
-
-    private fun doLinesIntersect(x1: Double, y1: Double, x2: Double, y2: Double, x3: Double, y3: Double, x4: Double, y4: Double): Boolean {
-        // Calculate the slopes and intercepts of the two lines
-        val m1 = (y2 - y1) / (x2 - x1)
-        val b1 = y1 - m1 * x1
-        val m2 = (y4 - y3) / (x4 - x3)
-        val b2 = y3 - m2 * x3
-
-        // Check if the lines are parallel (i.e., have the same slope)
-        if (m1 == m2) {
-            return false
-        }
-
-        // Calculate the x-coordinate of the intersection point
-        val xIntersect = (b2 - b1) / (m1 - m2)
-
-        // Check if the intersection point lies within the x-coordinates of the two line segments
-        return xIntersect >= Math.min(x1, x2) && xIntersect <= Math.max(x1, x2) &&
-                xIntersect >= Math.min(x3,x4) && xIntersect <= Math.max(x3, x4)
     }
 }
