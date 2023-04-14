@@ -38,8 +38,18 @@ enum class SegmentationType {
     PLANE,
 
     /**
-     * space-time transition of polygonal shape
+     * space-time transition (rotoscoping) of polygonal shape
      */
-    TRANSITION
+    ROTOPOLYGON,
+
+    /**
+     * space-time transition (rotoscoping) of closed bezier spline
+     */
+    ROTOBEZIER,
+
+    /**
+     * space-time transition (rotoscoping) of closed b-spline
+     */
+    ROTOBSPLINE
 
 }

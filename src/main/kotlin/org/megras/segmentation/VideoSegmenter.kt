@@ -20,7 +20,9 @@ object VideoSegmenter {
             SegmentationType.BSPLINE,
             SegmentationType.PATH,
             SegmentationType.MASK,
-            SegmentationType.TRANSITION -> segmentShape(videoStream, segmentation)
+            SegmentationType.ROTOPOLYGON,
+            SegmentationType.ROTOBEZIER,
+            SegmentationType.ROTOBSPLINE -> segmentShape(videoStream, segmentation)
             SegmentationType.TIME -> segmentTime(videoStream, segmentation as Time)
             SegmentationType.CHANNEL -> segmentChannel(videoStream, segmentation as Channel)
             else -> null
@@ -61,8 +63,8 @@ object VideoSegmenter {
 
                         override fun consume(frame: Frame?) {
                             if (frame != null) {
-                                val seg = if (segmentation is Transition) {
-                                    segmentation.interpolatePolygon(frameCounter)
+                                val seg = if (segmentation is Rotoscope) {
+                                    segmentation.interpolate(frameCounter)
                                 } else {
                                     segmentation
                                 }

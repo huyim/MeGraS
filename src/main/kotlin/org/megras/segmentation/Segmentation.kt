@@ -127,46 +127,31 @@ class Rect(
     )
 }
 
-class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
+class Polygon(val points: List<Pair<Double, Double>>) : SpaceSegmentation() {
 
     override val type: SegmentationType = SegmentationType.POLYGON
 
     init {
-        require(vertices.size > 2) {
+        require(points.size > 2) {
             throw IllegalArgumentException("A polygon needs at least 3 vertices")
         }
-        shape = java.awt.Polygon(vertices.map { it.first.roundToInt() }.toIntArray(),
-            vertices.map { it.second.roundToInt() }.toIntArray(),
-            vertices.size
+        shape = java.awt.Polygon(points.map { it.first.roundToInt() }.toIntArray(),
+            points.map { it.second.roundToInt() }.toIntArray(),
+            points.size
         )
         area = Area(shape)
-    }
-
-    fun isConvex(): Boolean {
-        if (vertices.size < 4) return true
-        var sign = false
-        val n: Int = vertices.size
-        for (i in 0 until n) {
-            val dx1: Double = vertices[(i + 2) % n].first - vertices[(i + 1) % n].first
-            val dy1: Double = vertices[(i + 2) % n].second - vertices[(i + 1) % n].second
-            val dx2: Double = vertices[i].first - vertices[(i + 1) % n].first
-            val dy2: Double = vertices[i].second - vertices[(i + 1) % n].second
-            val zcrossproduct = dx1 * dy2 - dy1 * dx2
-            if (i == 0) sign = zcrossproduct > 0 else if (sign != zcrossproduct > 0) return false
-        }
-        return true
     }
 
     /**
      * Returns 2d bounding [Rect]
      */
     fun boundingRect(): Rect {
-        var xmin = vertices.first().first
-        var ymin = vertices.first().second
+        var xmin = points.first().first
+        var ymin = points.first().second
         var xmax = xmin
         var ymax = ymin
 
-        vertices.forEach {
+        points.forEach {
             xmin = min(xmin, it.first)
             xmax = max(xmax, it.first)
             ymin = min(ymin, it.second)
@@ -176,16 +161,12 @@ class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
         return Rect(xmin, xmax, ymin, ymax)
     }
 
-    val xmin: Double = vertices.minOf { it.first }
-
-    val ymin: Double = vertices.minOf { it.second }
-
     /**
      * Converts [Polygon] into equivalent 2d [Rect] in case it exists
      */
     fun toRect(): Rect? {
 
-        val verts = this.vertices.toSet()
+        val verts = this.points.toSet()
 
         if (verts.size != 4) {
             return null
@@ -207,21 +188,21 @@ class Polygon(val vertices: List<Pair<Double, Double>>) : SpaceSegmentation() {
 
         other as Polygon
 
-        if (other.vertices.size != vertices.size) return false
+        if (other.points.size != points.size) return false
 
-        val start = vertices.indexOfFirst { it.equalsEpsilon(other.vertices.first()) }
+        val start = points.indexOfFirst { it.equalsEpsilon(other.points.first()) }
 
         if (start == -1) return false
 
-        return vertices.indices.all { other.vertices[it].equalsEpsilon(vertices[(it + start) % vertices.size]) }
+        return points.indices.all { other.points[it].equalsEpsilon(points[(it + start) % points.size]) }
 
     }
 
     override fun hashCode(): Int {
-        return vertices.sortedBy { it.first }.sortedBy { it.second }.hashCode()
+        return points.sortedBy { it.first }.sortedBy { it.second }.hashCode()
     }
 
-    override fun toString(): String = "segment/polygon/" + vertices.joinToString(",") { "(${it.first},${it.second})" }
+    override fun toString(): String = "segment/polygon/" + points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
 class SVGPath(path: String) : SpaceSegmentation() {
@@ -247,20 +228,12 @@ class SVGPath(path: String) : SpaceSegmentation() {
     }
 }
 
-class Spline(splineType: SegmentationType, controlPoints: List<Pair<Double, Double>>) : SpaceSegmentation() {
-    override val type: SegmentationType = splineType
+class BezierSpline(points: List<Pair<Double, Double>>) : SpaceSegmentation() {
+    override val type: SegmentationType = SegmentationType.BEZIER
 
     init {
-        when (type) {
-            SegmentationType.BEZIER -> initBezierSpline(controlPoints)
-            SegmentationType.BSPLINE -> initBSpline(controlPoints)
-            else -> {}
-        }
-    }
-
-    private fun initBezierSpline(controlPoints: List<Pair<Double, Double>>) {
-        val flattenedControlPoints = controlPoints.flatMap { listOf(it.first, it.second) }
-        val nBeziers = (controlPoints.size - 1) / 3
+        val flattenedControlPoints = points.flatMap { listOf(it.first, it.second) }
+        val nBeziers = (points.size - 1) / 3
 
         val path = Path2D.Double()
         path.moveTo(flattenedControlPoints[0], flattenedControlPoints[1])
@@ -275,37 +248,40 @@ class Spline(splineType: SegmentationType, controlPoints: List<Pair<Double, Doub
         shape = path
         area = Area(shape)
     }
+}
 
-    private fun initBSpline(controlPoints: List<Pair<Double, Double>>) {
+class BSpline(points: List<Pair<Double, Double>>) : SpaceSegmentation() {
+    override val type: SegmentationType = SegmentationType.BSPLINE
+
+    init {
         val degree: Long = 3
 
         // To close B-Splines, one can wrap p control points, where p is the curve degree
         // for details, see https://pages.mtu.edu/~shene/COURSES/cs3621/NOTES/spline/B-spline/bspline-curve-closed.html
-        var spline = BSpline(controlPoints.size.toLong() + degree, 2, degree, BSpline.Type.Opened)
-        val controlPointList = controlPoints.flatMap { listOf(it.first, it.second) }
-        val repeatPoints = controlPoints.subList(0, 3).flatMap { listOf(it.first, it.second) }
+        var spline = BSpline(points.size.toLong() + degree, 2, degree, BSpline.Type.Opened)
+        val controlPointList = points.flatMap { listOf(it.first, it.second) }
+        val repeatPoints = points.subList(0, 3).flatMap { listOf(it.first, it.second) }
         val closedPoints = controlPointList.plus(repeatPoints)
         spline.controlPoints = closedPoints
         spline = spline.toBeziers()
 
-        val points = spline.controlPoints
+        val controlPoints = spline.controlPoints
         val nBeziers = points.size / spline.order.toInt() / spline.dimension.toInt()
         val pointsPerBezier = points.size / nBeziers
 
         val path = Path2D.Double()
-        path.moveTo(points[0], points[1])
+        path.moveTo(controlPoints[0], controlPoints[1])
         for (i in 0 until nBeziers) {
             path.curveTo(
-                points[i * pointsPerBezier + 2], points[i * pointsPerBezier + 3],
-                points[i * pointsPerBezier + 4], points[i * pointsPerBezier + 5],
-                points[i * pointsPerBezier + 6], points[i * pointsPerBezier + 7]
+                controlPoints[i * pointsPerBezier + 2], controlPoints[i * pointsPerBezier + 3],
+                controlPoints[i * pointsPerBezier + 4], controlPoints[i * pointsPerBezier + 5],
+                controlPoints[i * pointsPerBezier + 6], controlPoints[i * pointsPerBezier + 7]
             )
         }
 
         shape = path
         area = Area(shape)
     }
-
 }
 
 class Mask(val mask: ByteArray) : Segmentation {
@@ -374,44 +350,49 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
 }
 
-class Transition(val points: List<Pair<Int, Polygon>>) : Segmentation {
-    override val type: SegmentationType = SegmentationType.TRANSITION
+data class RotoscopePair(val frame: Int, val points: List<Pair<Double, Double>>)
+
+class Rotoscope(segmentationType: SegmentationType, val rotoscopeList: List<RotoscopePair>) : Segmentation {
+    override val type: SegmentationType = segmentationType
     override val segmentClass: SegmentationClass = SegmentationClass.SPACETIME
 
     init {
-        require(points.size >= 2) {
+        require(rotoscopeList.size >= 2) {
             throw IllegalArgumentException("Need at least two transition points.")
         }
-        val size = points[0].second.vertices.size
-        require(points.all { it.second.vertices.size == size }) {
-            throw IllegalArgumentException("Starting and ending polygon have a different number of vertices.")
+        val initialSize = rotoscopeList.first().points.size
+        require(rotoscopeList.all { it.points.size == initialSize }) {
+            throw IllegalArgumentException("Need same amount of points for each shape.")
         }
     }
 
-    fun interpolatePolygon(frame: Int): Polygon? {
-        if (frame < points.first().first || frame > points.last().first) return null
+    fun interpolate(frame: Int): SpaceSegmentation? {
+        if (frame < rotoscopeList.first().frame || frame > rotoscopeList.last().frame) return null
 
-        val endIndex = points.indexOfFirst { it.first >= frame }
-        val (endFrame, endPolygon) = points[endIndex]
-        if (frame == endFrame) return endPolygon
+        val endIndex = rotoscopeList.indexOfFirst { it.frame >= frame }
+        val (endFrame, endPoints) = rotoscopeList[endIndex]
 
         val startIndex = endIndex - 1
-        val (startFrame, startPolygon) = points[startIndex]
-        if (frame == startFrame) return startPolygon
+        val (startFrame, startPoints) = rotoscopeList[startIndex]
 
         val t = (frame - startFrame).toDouble() / (endFrame - startFrame)
 
-        val newVertices = mutableListOf<Pair<Double, Double>>()
+        val newPoints = mutableListOf<Pair<Double, Double>>()
 
-        for (v in 0 until startPolygon.vertices.size) {
-            val sv = startPolygon.vertices[v]
-            val ev = endPolygon.vertices[v]
+        for (v in startPoints.indices) {
+            val sp = startPoints[v]
+            val ep = endPoints[v]
 
-            val x = sv.first + t * (ev.first - sv.first)
-            val y = sv.second + t * (ev.second - sv.second)
+            val x = sp.first + t * (ep.first - sp.first)
+            val y = sp.second + t * (ep.second - sp.second)
 
-            newVertices.add(Pair(x, y))
+            newPoints.add(x to y)
         }
-        return Polygon(newVertices)
+        return when (type) {
+            SegmentationType.ROTOPOLYGON -> Polygon(newPoints)
+            SegmentationType.ROTOBEZIER -> BezierSpline(newPoints)
+            SegmentationType.ROTOBSPLINE -> BSpline(newPoints)
+            else -> null
+        }
     }
 }

@@ -171,22 +171,12 @@ object SegmentationUtil {
 
 
             }
+
             /**
              * (x,y),(x,y),...,(x,y)
              */
             SegmentationType.POLYGON -> {
-
-                val points = segmentDefinition.split("),").map { chunk ->
-                    val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
-                    if (coords.any { it == null }) {
-                        null
-                    } else if (coords.size < 2) {
-                        null
-                    } else {
-                        coords[0]!! to coords[1]!!
-                    }
-                }
-
+                val points = parsePointPairs(segmentDefinition)
                 val finalPoints = points.filterNotNull()
 
                 if (finalPoints.size == points.size) {
@@ -195,24 +185,22 @@ object SegmentationUtil {
                     null
                 }
             }
-
-            SegmentationType.BEZIER, SegmentationType.BSPLINE -> {
-
-                val points = segmentDefinition.split("),").map { chunk ->
-                    val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
-                    if (coords.any { it == null }) {
-                        null
-                    } else if (coords.size < 2) {
-                        null
-                    } else {
-                        coords[0]!! to coords[1]!!
-                    }
-                }
-
+            SegmentationType.BEZIER -> {
+                val points = parsePointPairs(segmentDefinition)
                 val finalPoints = points.filterNotNull()
 
                 if (finalPoints.size == points.size) {
-                    Spline(type, finalPoints)
+                    BezierSpline(finalPoints)
+                } else {
+                    null
+                }
+            }
+            SegmentationType.BSPLINE -> {
+                val points = parsePointPairs(segmentDefinition)
+                val finalPoints = points.filterNotNull()
+
+                if (finalPoints.size == points.size) {
+                    BSpline(finalPoints)
                 } else {
                     null
                 }
@@ -223,7 +211,6 @@ object SegmentationUtil {
             }
 
             SegmentationType.MASK -> {
-
                 var binaryString = ""
                 if (segmentDefinition.matches(Regex("^[01]+$"))) {
                     binaryString = segmentDefinition
@@ -278,35 +265,57 @@ object SegmentationUtil {
             /**
              * t0,(x,y),(x,y),...,(x,y),t1,(x,y),(x,y),...,(x,y),...,tn,(x,y),(x,y),...,(x,y)
              */
-            SegmentationType.TRANSITION -> {
-
-                val parts = segmentDefinition.split(Regex("(?<=\\))(,)?(?=\\d)"))
-                val points = mutableListOf<Pair<Int, Polygon>>()
-
-                parts.forEach { part ->
-                    val p = part.split(",(").flatMap { it.split("),")}.map { it.replace(")", "") }
-                    val frame = p[0].toIntOrNull()
-                    val vertices = p.subList(1, p.size).map { chunk ->
-                        val coords = chunk.split(",").map { it.toDoubleOrNull() }
-                        if (coords.any { it == null }) {
-                            null
-                        } else if (coords.size < 2) {
-                            null
-                        } else {
-                            coords[0]!! to coords[1]!!
-                        }
-                    }
-                    val finalVertices = vertices.filterNotNull()
-                    if (frame != null && vertices.size == finalVertices.size) {
-                        points.add(frame to Polygon(finalVertices))
-                    } else {
-                        return null
-                    }
-                }
-                Transition(points)
+            SegmentationType.ROTOPOLYGON -> {
+                buildRotoscopeSegment(SegmentationType.ROTOPOLYGON, segmentDefinition)
+            }
+            SegmentationType.ROTOBEZIER -> {
+                buildRotoscopeSegment(SegmentationType.ROTOBEZIER, segmentDefinition)
+            }
+            SegmentationType.ROTOBSPLINE -> {
+                buildRotoscopeSegment(SegmentationType.ROTOBSPLINE, segmentDefinition)
             }
 
             else -> null
         }
+    }
+
+    private fun parsePointPairs(input: String) : List<Pair<Double, Double>?> {
+        return input.split("),").map { chunk ->
+            val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
+            if (coords.any { it == null }) {
+                null
+            } else if (coords.size < 2) {
+                null
+            } else {
+                coords[0]!! to coords[1]!!
+            }
+        }
+    }
+
+    private fun buildRotoscopeSegment(type: SegmentationType, input: String) : Rotoscope? {
+        val parts = input.split(Regex("(?<=\\))(,)?(?=\\d)"))
+        val rotoscopeList = mutableListOf<RotoscopePair>()
+
+        parts.forEach { part ->
+            val p = part.split(",(").flatMap { it.split("),")}.map { it.replace(")", "") }
+            val frame = p[0].toIntOrNull()
+            val vertices = p.subList(1, p.size).map { chunk ->
+                val coords = chunk.split(",").map { it.toDoubleOrNull() }
+                if (coords.any { it == null }) {
+                    null
+                } else if (coords.size < 2) {
+                    null
+                } else {
+                    coords[0]!! to coords[1]!!
+                }
+            }
+            val finalVertices = vertices.filterNotNull()
+            if (frame != null && vertices.size == finalVertices.size) {
+                rotoscopeList.add(RotoscopePair(frame, finalVertices))
+            } else {
+                return null
+            }
+        }
+        return Rotoscope(type, rotoscopeList)
     }
 }
