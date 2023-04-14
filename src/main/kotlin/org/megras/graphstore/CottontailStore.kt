@@ -119,12 +119,16 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         catchExists {
             client.create(
                 CreateEntity("megras.vector_types")
-                    .column("id", Type.LONG, autoIncrement = true)
+                    .column("id", Type.INTEGER, autoIncrement = true)
                     .column("type", Type.BYTE)
                     .column("length", Type.INTEGER)
             )
 
         }
+
+        catchExists { client.create(CreateIndex("megras.vector_types", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists { client.create(CreateIndex("megras.vector_types", "type", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.vector_types", "length", CottontailGrpc.IndexType.BTREE)) }
 
 
     }
@@ -315,7 +319,24 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     private fun getVectorQuadValue(type: Int, id: Long): VectorValue? {
-        TODO()
+
+        val internalId = -type - VECTOR_ID_OFFSET
+
+        val properties = getVectorProperties(internalId) ?: return null
+
+        val name = "megras.vector_values_${internalId}"
+
+        val result = client.query(Query(name).select("value").where(Expression("id", "=", id)))
+
+        if (result.hasNext()) {
+            val tuple = result.next()
+            return when(properties.second) {
+                VectorValue.Type.Double -> DoubleVectorValue(tuple.asDoubleVector("value")!!)
+                VectorValue.Type.Long -> LongVectorValue(tuple.asLongVector("value")!!)
+            }
+        }
+
+        return null
     }
 
     private fun getDoubleLiteralId(value: Double): Long? {
@@ -392,12 +413,145 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         return null
     }
 
+    private fun getVectorEntity(type: VectorValue.Type, length: Int): Int? {
+        //TODO caching
+        val result = client.query(
+            Query("megras.vector_types")
+                .select("id")
+                .where(And(
+                    Expression("length", "=", length),
+                    Expression("type", "=", type.byte)
+                ))
+        )
+
+        if (result.hasNext()) {
+            val tuple = result.next()
+            val id = tuple.asInt("id")
+            if (id != null) {
+                //TODO cache
+            }
+            return id
+        }
+
+        return null
+    }
+
+    private fun getVectorProperties(type: Int): Pair<Int, VectorValue.Type>? {
+        //TODO caching
+        val result = client.query(
+            Query("megras.vector_types")
+                .select("*")
+                .where(
+                    Expression("id", "=", type)
+                )
+        )
+
+        if (result.hasNext()) {
+            val tuple = result.next()
+            return tuple.asInt("length")!! to VectorValue.Type.fromByte(tuple.asByte("type")!!)
+        }
+
+        return null
+
+    }
+    private fun getOrCreateVectorEntity(type: VectorValue.Type, length: Int): Int {
+
+
+        fun createEntity(): Int {
+
+            client.insert(
+                Insert("megras.vector_types").values("length" to length, "type" to type.byte)
+            )
+
+            val id = getVectorEntity(type, length)!!
+
+            val name = "megras.vector_values_${id}"
+
+            client.create(
+                CreateEntity(name)
+                    .column("id", Type.LONG, autoIncrement = true)
+                    .column("value", type.cottontailType(), length = length)
+
+            )
+
+            client.create(CreateIndex(name, "id", CottontailGrpc.IndexType.BTREE_UQ))
+
+            return id
+
+        }
+
+        return getVectorEntity(type, length) ?: createEntity()
+
+    }
+
     private fun getVectorQuadValueId(value: VectorValue): Pair<Int?, Long?> {
-        TODO()
+
+        val entityId = getVectorEntity(value.type, value.length) ?: return null to null
+
+        val name = "megras.vector_values_${entityId}"
+
+        val result = client.query(
+            Query(name)
+                .select("id")
+                .where(Expression("value", "=",
+                    when(value.type) {
+                        VectorValue.Type.Double -> (value as DoubleVectorValue).vector
+                        VectorValue.Type.Long -> (value as LongVectorValue).vector
+                    }
+                ))
+        )
+
+        val id = if (result.hasNext()) {
+            val tuple = result.next()
+            tuple.asLong("id")
+        } else {
+            return null to null
+        } ?: return null to null
+
+        return (-entityId + VECTOR_ID_OFFSET) to id
     }
 
     private fun getOrAddVectorQuadValueId(value: VectorValue): Pair<Int, Long> {
-        TODO()
+
+        val present = getVectorQuadValueId(value)
+
+        if (present.first != null && present.second != null) {
+            return present.first!! to present.second!!
+        }
+
+        val entityId = getOrCreateVectorEntity(value.type, value.length)
+
+        val name = "megras.vector_values_${entityId}"
+
+        client.insert(
+            Insert(name).value("value",
+                when(value.type) {
+                    VectorValue.Type.Double -> (value as DoubleVectorValue).vector
+                    VectorValue.Type.Long -> (value as LongVectorValue).vector
+                }
+            )
+        )
+
+        val result = client.query(
+            Query(name)
+                .select("id")
+                .where(Expression("value", "=",
+                    when(value.type) {
+                        VectorValue.Type.Double -> (value as DoubleVectorValue).vector
+                        VectorValue.Type.Long -> (value as LongVectorValue).vector
+                    }
+                ))
+        )
+
+        if (result.hasNext()) {
+            val tuple = result.next()
+            val id = tuple.asLong("id")
+            if (id != null) {
+                return (-entityId + VECTOR_ID_OFFSET) to id
+            }
+        }
+
+        throw IllegalStateException("could not obtain id for inserted value")
     }
 
     /**

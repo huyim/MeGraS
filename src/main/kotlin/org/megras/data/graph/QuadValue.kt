@@ -1,5 +1,6 @@
 package org.megras.data.graph
 
+import org.vitrivr.cottontail.client.language.basics.Type
 import java.net.URI
 import java.net.URISyntaxException
 
@@ -146,15 +147,32 @@ open class URIValue(private val prefix: String?, protected open val uri: String)
 
 open class VectorValue(val type: Type, val length: Int) : QuadValue() {
 
-    enum class Type {
-        Double, Long
+    enum class Type(val byte: Byte) {
+        Double(0) {
+            override fun cottontailType(): org.vitrivr.cottontail.client.language.basics.Type = org.vitrivr.cottontail.client.language.basics.Type.DOUBLE_VECTOR
+        }, Long(1) {
+            override fun cottontailType(): org.vitrivr.cottontail.client.language.basics.Type = org.vitrivr.cottontail.client.language.basics.Type.LONG_VECTOR
+        };
+
+        abstract fun cottontailType(): org.vitrivr.cottontail.client.language.basics.Type
+
+        companion object {
+            fun fromByte(byte: Byte) = when(byte) {
+                0.toByte() -> Double
+                1.toByte() -> Long
+                else -> throw IllegalArgumentException()
+            }
+        }
+
     }
+
+
 
 }
 
 class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vector.size) {
     constructor(values: List<Double>) : this(values.toDoubleArray())
-    constructor(values: List<Float>) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
+//    constructor(values: List<Float>) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
     constructor(values: FloatArray) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
 
     override fun equals(other: Any?): Boolean {
@@ -176,7 +194,7 @@ class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vect
 class LongVectorValue(val vector: LongArray) : VectorValue(Type.Long, vector.size) {
 
     constructor(values: List<Long>) : this(values.toLongArray())
-    constructor(values: List<Int>) : this(LongArray(values.size) { i -> values[i].toLong() })
+//    constructor(values: List<Int>) : this(LongArray(values.size) { i -> values[i].toLong() })
     constructor(values: IntArray) : this(LongArray(values.size) { i -> values[i].toLong() })
 
     override fun equals(other: Any?): Boolean {
