@@ -378,9 +378,18 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         }
 
         //value not yet present, inserting new
-        client.insert(
+        val result = client.insert(
             Insert("megras.literal_double").value("value", value)
         )
+
+        if (result.hasNext()) {
+            val id = result.next().asLong("id")
+            if (id != null) {
+                doubleLiteralValueCache.put(id, value)
+                doubleLiteralIdCache.put(value, id)
+                return id
+            }
+        }
 
         return getDoubleLiteralId(value) ?: throw IllegalStateException("could not obtain id for inserted value")
 
@@ -459,11 +468,16 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         fun createEntity(): Int {
 
-            client.insert(
+            val result = client.insert(
                 Insert("megras.vector_types").values("length" to length, "type" to type.byte)
             )
 
-            val id = getVectorEntity(type, length)!!
+
+            val id = if (result.hasNext()) {
+                result.next().asInt("id")!!
+            } else {
+                getVectorEntity(type, length)!!
+            }
 
             val name = "megras.vector_values_${id}"
 
@@ -523,7 +537,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         val name = "megras.vector_values_${entityId}"
 
-        client.insert(
+        val insertResult = client.insert(
             Insert(name).value("value",
                 when(value.type) {
                     VectorValue.Type.Double -> (value as DoubleVectorValue).vector
@@ -531,6 +545,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
                 }
             )
         )
+
+        if (insertResult.hasNext()) {
+            val id = insertResult.next().asLong("id")
+            if (id != null) {
+                return (-entityId + VECTOR_ID_OFFSET) to id
+            }
+        }
 
         val result = client.query(
             Query(name)
@@ -566,9 +587,16 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         }
 
         //value not yet present, inserting new
-        client.insert(
+        val result = client.insert(
             Insert("megras.literal_string").value("value", value)
         )
+
+        if (result.hasNext()) {
+            val id = result.next().asLong("id")
+            if (id != null) {
+                return id
+            }
+        }
 
         return getStringLiteralId(value) ?: throw IllegalStateException("could not obtain id for inserted value")
 
@@ -655,18 +683,24 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
     private fun getOrAddUriValueId(value: URIValue): Pair<Int, Long> {
 
-        val (prefix, suffix) = getUriValueId(value)
+        var (prefix, suffix) = getUriValueId(value)
 
         if (prefix == null) {
-            client.insert(
+            val result = client.insert(
                 Insert("megras.entity_prefix").value("prefix", value.prefix())
             )
+            if (result.hasNext()) {
+                prefix = result.next().asInt("id")
+            }
         }
 
         if (suffix == null) {
-            client.insert(
+            val result = client.insert(
                 Insert("megras.entity").value("value", value.suffix())
             )
+            if (result.hasNext()) {
+                suffix = result.next().asLong("id")
+            }
         }
 
         if (prefix != null && suffix != null) {
@@ -712,8 +746,8 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         return null
     }
 
-    private fun insert(sType: Int, s: Long, pType: Int, p: Long, oType: Int, o: Long) {
-        client.insert(
+    private fun insert(sType: Int, s: Long, pType: Int, p: Long, oType: Int, o: Long): Long {
+        val result = client.insert(
             Insert("megras.quads")
                 .value("s_type", sType)
                 .value("s", s)
@@ -722,6 +756,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
                 .value("o_type", oType)
                 .value("o", o)
         )
+        if (result.hasNext()) {
+            val id = result.next().asLong("id")
+            if (id != null) {
+                return id
+            }
+        }
+        throw IllegalStateException("could not obtain id for inserted value")
     }
 
     /**
@@ -739,9 +780,9 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             return existingId
         }
 
-        insert(s.first, s.second, p.first, p.second, o.first, o.second)
+        return insert(s.first, s.second, p.first, p.second, o.first, o.second)
 
-        return getQuadId(s, p, o) ?: throw IllegalStateException("could not obtain id for inserted value")
+        //return getQuadId(s, p, o) ?: throw IllegalStateException("could not obtain id for inserted value")
 
     }
 
