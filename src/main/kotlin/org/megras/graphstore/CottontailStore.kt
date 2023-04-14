@@ -1,8 +1,8 @@
 package org.megras.graphstore
 
+import com.google.common.cache.CacheBuilder
 import io.grpc.ManagedChannelBuilder
 import io.grpc.StatusRuntimeException
-import kotlinx.serialization.descriptors.mapSerialDescriptor
 import org.megras.data.graph.*
 import org.vitrivr.cottontail.client.SimpleClient
 import org.vitrivr.cottontail.client.language.basics.Type
@@ -13,6 +13,7 @@ import org.vitrivr.cottontail.client.language.basics.predicate.Predicate
 import org.vitrivr.cottontail.client.language.ddl.CreateEntity
 import org.vitrivr.cottontail.client.language.ddl.CreateIndex
 import org.vitrivr.cottontail.client.language.ddl.CreateSchema
+import org.vitrivr.cottontail.client.language.dml.Delete
 import org.vitrivr.cottontail.client.language.dml.Insert
 import org.vitrivr.cottontail.client.language.dql.Query
 import org.vitrivr.cottontail.grpc.CottontailGrpc
@@ -122,6 +123,24 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
     }
 
+    private val cacheSize = 10000L
+
+    private val stringLiteralIdCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<String, Long>()
+    private val stringLiteralValueCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Long, String>()
+
+    private val doubleLiteralIdCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Double, Long>()
+    private val doubleLiteralValueCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Long, Double>()
+
+    private val prefixValueCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Int, String>()
+    private val prefixIdCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<String, Int>()
+
+    private val suffixValueCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Long, String>()
+    private val suffixIdCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<String, Long>()
+
+    private val uriValueIdCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Pair<Int, Long>, URIValue>()
+    private val uriValueValueCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<URIValue, Pair<Int, Long>>()
+
+
     private fun getQuadValueId(quadValue: QuadValue): Pair<Int?, Long?> {
 
         return when (quadValue) {
@@ -156,6 +175,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     private fun getDoubleValue(id: Long): DoubleValue? {
+
+        val cached = doubleLiteralValueCache.getIfPresent(id)
+
+        if (cached != null) {
+            return DoubleValue(cached)
+        }
+
         val result = client.query(
             Query("megras.literal_double")
                 .select("value")
@@ -165,6 +191,8 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         if (result.hasNext()) {
             val value = result.next().asDouble("value")
             if (value != null) {
+                doubleLiteralIdCache.put(value, id)
+                doubleLiteralValueCache.put(id, value)
                 return DoubleValue(value)
             }
         }
@@ -173,6 +201,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     private fun getStringValue(id: Long): StringValue? {
+
+        val cached = stringLiteralValueCache.getIfPresent(id)
+
+        if (cached != null) {
+            return StringValue(cached)
+        }
+
         val result = client.query(
             Query("megras.literal_string")
                 .select("value")
@@ -182,6 +217,8 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         if (result.hasNext()) {
             val value = result.next().asString("value")
             if (value != null) {
+                stringLiteralValueCache.put(id, value)
+                stringLiteralIdCache.put(value, id)
                 return StringValue(value)
             }
         }
@@ -192,6 +229,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     private fun getUriValue(type: Int, id: Long): URIValue? {
 
         fun prefix(id: Int): String? {
+
+            val cached = prefixValueCache.getIfPresent(id)
+
+            if (cached != null) {
+                return cached
+            }
+
             val result = client.query(
                 Query("megras.entity_prefix").select("prefix").where(
                     Expression("id", "=", id)
@@ -200,13 +244,25 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
             if (result.hasNext()) {
                 val tuple = result.next()
-                return tuple.asString("prefix")
+                val prefix = tuple.asString("prefix")
+                if (prefix != null) {
+                    prefixValueCache.put(id, prefix)
+                    prefixIdCache.put(prefix, id)
+                }
+                return prefix
             }
 
             return null
         }
 
         fun suffix(id: Long): String? {
+
+            val cached = suffixValueCache.getIfPresent(id)
+
+            if (cached != null) {
+                return cached
+            }
+
             val result = client.query(
                 Query("megras.entity").select("value").where(
                     Expression("id", "=", id)
@@ -215,7 +271,12 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
             if (result.hasNext()) {
                 val tuple = result.next()
-                return tuple.asString("value")
+                val value = tuple.asString("value")
+                if (value != null) {
+                    suffixIdCache.put(value, id)
+                    suffixValueCache.put(id, value)
+                }
+                return value
             }
 
             return null
@@ -226,13 +287,32 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             return LocalQuadValue(suffix)
         }
 
+        val key = type to id
+        val cached = uriValueIdCache.getIfPresent(key)
+
+        if (cached != null) {
+            return cached
+        }
+
         val prefix = prefix(type) ?: return null
         val suffix = suffix(id) ?: return null
 
-        return URIValue(prefix, suffix)
+        val value = URIValue(prefix, suffix)
+
+        uriValueValueCache.put(value, key)
+        uriValueIdCache.put(key, value)
+
+        return value
     }
 
     private fun getDoubleLiteralId(value: Double): Long? {
+
+        val cached = doubleLiteralIdCache.getIfPresent(value)
+
+        if (cached != null) {
+            return cached
+        }
+
         val result = client.query(
             Query("megras.literal_double").select("id").where(
                 Expression("value", "=", value)
@@ -241,7 +321,12 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         if (result.hasNext()) {
             val tuple = result.next()
-            return tuple.asLong("id")
+            val id = tuple.asLong("id")
+            if (id != null) {
+                doubleLiteralValueCache.put(id, value)
+                doubleLiteralIdCache.put(value, id)
+            }
+            return id
         }
 
         return null
@@ -268,6 +353,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     private fun getStringLiteralId(value: String): Long? {
+
+        val cached = stringLiteralIdCache.getIfPresent(value)
+
+        if (cached != null) {
+            return cached
+        }
+
         val result = client.query(
             Query("megras.literal_string").select("id").where(
                 Expression("value", "=", value)
@@ -276,7 +368,12 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         if (result.hasNext()) {
             val tuple = result.next()
-            return tuple.asLong("id")
+            val id = tuple.asLong("id")
+            if (id != null) {
+                stringLiteralValueCache.put(id, value)
+                stringLiteralIdCache.put(value, id)
+            }
+            return id
         }
 
         return null
@@ -305,6 +402,12 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     private fun getUriValueId(value: URIValue): Pair<Int?, Long?> {
 
         fun prefix(value: String): Int? {
+
+            val cached = prefixIdCache.getIfPresent(value)
+            if (cached != null) {
+                return cached
+            }
+
             val result = client.query(
                 Query("megras.entity_prefix").select("id").where(
                     Expression("prefix", "=", value)
@@ -313,13 +416,25 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
             if (result.hasNext()) {
                 val tuple = result.next()
-                return tuple.asInt("id")
+                val id = tuple.asInt("id")
+                if (id != null) {
+                    prefixValueCache.put(id, value)
+                    prefixIdCache.put(value, id)
+                }
+                return id
             }
 
             return null
         }
 
         fun suffix(value: String): Long? {
+
+            val cached = suffixIdCache.getIfPresent(value)
+
+            if (cached != null) {
+                return cached
+            }
+
             val result = client.query(
                 Query("megras.entity").select("id").where(
                     Expression("value", "=", value)
@@ -328,7 +443,12 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
             if (result.hasNext()) {
                 val tuple = result.next()
-                return tuple.asLong("id")
+                val id = tuple.asLong("id")
+                if (id != null) {
+                    suffixIdCache.put(value, id)
+                    suffixValueCache.put(id, value)
+                }
+                return id
             }
 
             return null
@@ -338,7 +458,23 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             return LOCAL_URI_TYPE to suffix(value.suffix())
         }
 
-        return prefix(value.prefix()) to suffix(value.suffix())
+        val cached = uriValueValueCache.getIfPresent(value)
+        if (cached != null) {
+            return cached
+        }
+
+        val pair = prefix(value.prefix()) to suffix(value.suffix())
+
+        if (pair.first != null && pair.second != null) {
+
+            val key = pair.first!! to pair.second!!
+            uriValueIdCache.put(key, value)
+            uriValueValueCache.put(value, key)
+            return key
+
+        }
+
+        return pair
 
     }
 
@@ -623,27 +759,29 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     override val size: Int
         get() = TODO("Not yet implemented")
 
-    override fun contains(element: Quad): Boolean {
-        val s = getQuadValueId(element.subject)
+    private fun getQuadId(quad: Quad): Long? {
+        val s = getQuadValueId(quad.subject)
 
         if (s.first == null || s.second == null) {
-            return false
+            return null
         }
 
-        val p = getQuadValueId(element.predicate)
+        val p = getQuadValueId(quad.predicate)
 
         if (p.first == null || p.second == null) {
-            return false
+            return null
         }
 
-        val o = getQuadValueId(element.`object`)
+        val o = getQuadValueId(quad.`object`)
 
         if (o.first == null || o.second == null) {
-            return false
+            return null
         }
 
-        return getQuadId(s.first!! to s.second!!, p.first!! to p.second!!, o.first!! to o.second!!) != null
+        return getQuadId(s.first!! to s.second!!, p.first!! to p.second!!, o.first!! to o.second!!)
     }
+
+    override fun contains(element: Quad): Boolean = getQuadId(element) != null
 
     override fun containsAll(elements: Collection<Quad>): Boolean {
         return elements.all { contains(it) }
@@ -681,7 +819,25 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     override fun remove(element: Quad): Boolean {
-        TODO("Not yet implemented")
+
+        fun delete(quadId: Long) {
+            client.delete(
+                Delete("megras.quads").where(Expression("id", "=", quadId))
+            )
+        }
+
+        if (element.id != null) {
+            val storedQuad = getId(element.id)
+            if (storedQuad == element) {
+                delete(element.id)
+                return true
+            }
+        } else {
+            val id = getQuadId(element) ?: return false
+            delete(id)
+            return true
+        }
+        return false
     }
 
     override fun removeAll(elements: Collection<Quad>): Boolean {

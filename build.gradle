@@ -72,7 +72,11 @@ dependencies {
     implementation group: 'io.grpc', name: 'grpc-all', version: grpcVersion
     implementation group: 'com.google.protobuf', name: 'protobuf-java', version: protobufVersion
 
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.7.20'
+    /* Guava */
+    implementation group: 'com.google.guava', name: 'guava', version: '31.1-jre'
+
+
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.7.22'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
 }
