@@ -21,7 +21,7 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
 
         val relevant = quads.filter(setOf(objectId), null,null) + quads.filter(null, null, setOf(objectId))
 
-        if (quads.isEmpty()) {
+        if (relevant.isEmpty()) {
             throw RestErrorStatus.notFound
         }
 
@@ -36,11 +36,11 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
           """.trimIndent()
         )
 
-        val type = quads.filterPredicate(MeGraS.MEDIA_TYPE.uri).firstOrNull()?.`object` as? StringValue
+        val type = relevant.filterPredicate(MeGraS.MEDIA_TYPE.uri).firstOrNull()?.`object` as? StringValue
 
         when(type?.value) {
             MediaType.IMAGE.name -> {
-                buf.append("<img src='$basePath/$objectId' />")
+                buf.append("<img src='$basePath/${objectId.uri}' />")
             }
 
             else -> {/* no preview */}
@@ -48,7 +48,7 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
 
         buf.append("\n<br><textarea readonly style='width: 100%; min-height: 200px; resize: vertical;'>\n")
         relevant.forEach {
-            buf.append("(${it.id}) <${it.subject}> <${it.predicate}> <${it.`object`}>\n")
+            buf.append("(${it.id}) ${it.subject} ${it.predicate} ${it.`object`}\n")
         }
 
         buf.append("""
