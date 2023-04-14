@@ -2,6 +2,7 @@ plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.7.20'
     id 'org.jetbrains.kotlin.plugin.serialization' version '1.7.20'
     id 'java'
+    id 'application'
 }
 
 group 'org.megras'
@@ -13,6 +14,13 @@ repositories {
         url "https://oss.sonatype.org/content/repositories/snapshots/"
     }
 }
+
+application {
+    getMainClass().set('org.mgras.MeGraS')
+    applicationDefaultJvmArgs = ["-Xms2G", "-Xmx4G"]
+}
+// Required for shadow
+mainClassName = application.mainClass.get()
 
 dependencies {
 
