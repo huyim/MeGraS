@@ -17,7 +17,6 @@ import org.vitrivr.cottontail.client.language.dml.Delete
 import org.vitrivr.cottontail.client.language.dml.Insert
 import org.vitrivr.cottontail.client.language.dql.Query
 import org.vitrivr.cottontail.grpc.CottontailGrpc
-import java.lang.IllegalStateException
 
 
 class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQuadSet {
@@ -33,6 +32,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         const val DOUBLE_LITERAL_TYPE = -3
         const val STRING_LITERAL_TYPE = -4
         const val BINARY_DATA_TYPE = 0
+        const val VECTOR_ID_OFFSET = -10
     }
 
     fun setup() {
@@ -78,10 +78,10 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             )
         }
 
-        catchExists{ client.create(CreateIndex("megras.literal_string", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
-        catchExists{ client.create(CreateIndex("megras.literal_string", "value", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.literal_string", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists { client.create(CreateIndex("megras.literal_string", "value", CottontailGrpc.IndexType.BTREE)) }
 
-        catchExists{
+        catchExists {
             client.create(
                 CreateEntity("megras.literal_double")
                     .column("id", Type.LONG, autoIncrement = true)
@@ -89,10 +89,10 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             )
         }
 
-        catchExists{ client.create(CreateIndex("megras.literal_double", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
-        catchExists{ client.create(CreateIndex("megras.literal_double", "value", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.literal_double", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists { client.create(CreateIndex("megras.literal_double", "value", CottontailGrpc.IndexType.BTREE)) }
 
-        catchExists{
+        catchExists {
             client.create(
                 CreateEntity("megras.entity_prefix")
                     .column("id", Type.INTEGER, autoIncrement = true)
@@ -100,10 +100,10 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             )
         }
 
-        catchExists{ client.create(CreateIndex("megras.entity_prefix", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
-        catchExists{ client.create(CreateIndex("megras.entity_prefix", "prefix", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.entity_prefix", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists { client.create(CreateIndex("megras.entity_prefix", "prefix", CottontailGrpc.IndexType.BTREE)) }
 
-        catchExists{
+        catchExists {
             client.create(
                 CreateEntity("megras.entity")
                     .column("id", Type.LONG, autoIncrement = true)
@@ -112,13 +112,19 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             )
         }
 
-        catchExists{ client.create(CreateIndex("megras.entity", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
-        catchExists{ client.create(CreateIndex("megras.entity", "value", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.entity", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
+        catchExists { client.create(CreateIndex("megras.entity", "value", CottontailGrpc.IndexType.BTREE)) }
 
-//        client.create(CreateEntity("type_map")
-//            .column("id", Type.INTEGER, autoIncrement = true)
-//            .column("type", Type.STRING)
-//        )
+
+        catchExists {
+            client.create(
+                CreateEntity("megras.vector_types")
+                    .column("id", Type.LONG, autoIncrement = true)
+                    .column("type", Type.BYTE)
+                    .column("length", Type.INTEGER)
+            )
+
+        }
 
 
     }
@@ -148,6 +154,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             is LongValue -> LONG_LITERAL_TYPE to quadValue.value //no indirection needed
             is StringValue -> STRING_LITERAL_TYPE to getStringLiteralId(quadValue.value)
             is URIValue -> getUriValueId(quadValue)
+            is VectorValue -> getVectorQuadValueId(quadValue)
         }
 
     }
@@ -159,16 +166,18 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             is LongValue -> LONG_LITERAL_TYPE to quadValue.value //no indirection needed
             is StringValue -> STRING_LITERAL_TYPE to getOrAddStringLiteralId(quadValue.value)
             is URIValue -> getOrAddUriValueId(quadValue)
+            is VectorValue -> getOrAddVectorQuadValueId(quadValue)
         }
 
     }
 
     private fun getQuadValue(type: Int, id: Long): QuadValue? {
 
-        return when (type) {
-            DOUBLE_LITERAL_TYPE -> getDoubleValue(id)
-            LONG_LITERAL_TYPE -> LongValue(id)
-            STRING_LITERAL_TYPE -> getStringValue(id)
+        return when {
+            type == DOUBLE_LITERAL_TYPE -> getDoubleValue(id)
+            type == LONG_LITERAL_TYPE -> LongValue(id)
+            type == STRING_LITERAL_TYPE -> getStringValue(id)
+            type < VECTOR_ID_OFFSET -> getVectorQuadValue(type, id)
             else -> getUriValue(type, id)
         }
 
@@ -305,6 +314,10 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         return value
     }
 
+    private fun getVectorQuadValue(type: Int, id: Long): VectorValue? {
+        TODO()
+    }
+
     private fun getDoubleLiteralId(value: Double): Long? {
 
         val cached = doubleLiteralIdCache.getIfPresent(value)
@@ -377,6 +390,14 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         }
 
         return null
+    }
+
+    private fun getVectorQuadValueId(value: VectorValue): Pair<Int?, Long?> {
+        TODO()
+    }
+
+    private fun getOrAddVectorQuadValueId(value: VectorValue): Pair<Int, Long> {
+        TODO()
     }
 
     /**
