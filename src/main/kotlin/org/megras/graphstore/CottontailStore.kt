@@ -4,6 +4,7 @@ import com.google.common.cache.CacheBuilder
 import io.grpc.ManagedChannelBuilder
 import io.grpc.StatusRuntimeException
 import org.megras.data.graph.*
+import org.megras.util.extensions.toBase64
 import org.vitrivr.cottontail.client.SimpleClient
 import org.vitrivr.cottontail.client.language.basics.Type
 import org.vitrivr.cottontail.client.language.basics.predicate.And
@@ -17,6 +18,7 @@ import org.vitrivr.cottontail.client.language.dml.Delete
 import org.vitrivr.cottontail.client.language.dml.Insert
 import org.vitrivr.cottontail.client.language.dql.Query
 import org.vitrivr.cottontail.grpc.CottontailGrpc
+import java.nio.ByteBuffer
 
 
 class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQuadSet {
@@ -59,6 +61,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
                     .column("p", Type.LONG)
                     .column("o_type", Type.INTEGER)
                     .column("o", Type.LONG)
+                    .column("hash", Type.STRING)
             )
         }
 
@@ -69,6 +72,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         catchExists { client.create(CreateIndex("megras.quads", "p", CottontailGrpc.IndexType.BTREE)) }
         catchExists { client.create(CreateIndex("megras.quads", "o_type", CottontailGrpc.IndexType.BTREE)) }
         catchExists { client.create(CreateIndex("megras.quads", "o", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.quads", "hash", CottontailGrpc.IndexType.BTREE_UQ)) }
 
         catchExists {
             client.create(
@@ -731,13 +735,14 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             Query("megras.quads")
                 .select("id")
                 .where(
-                    And(
-                        And(
-                            subjectFilterExpression(subject.first, subject.second),
-                            predicateFilterExpression(predicate.first, predicate.second)
-                        ),
-                        objectFilterExpression(`object`.first, `object`.second)
-                    )
+//                    And(
+//                        And(
+//                            subjectFilterExpression(subject.first, subject.second),
+//                            predicateFilterExpression(predicate.first, predicate.second)
+//                        ),
+//                        objectFilterExpression(`object`.first, `object`.second)
+//                    )
+                Expression("hash", "=", quadHash(subject.first, subject.second, predicate.first, predicate.second, `object`.first, `object`.second))
                 )
         )
         if (result.hasNext()) {
@@ -755,6 +760,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
                 .value("p", p)
                 .value("o_type", oType)
                 .value("o", o)
+                .value("hash", quadHash(sType, s, pType, p, oType, o))
         )
         if (result.hasNext()) {
             val id = result.next().asLong("id")
@@ -763,6 +769,18 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             }
         }
         throw IllegalStateException("could not obtain id for inserted value")
+    }
+
+    private fun quadHash(sType: Int, s: Long, pType: Int, p: Long, oType: Int, o: Long): String {
+
+        val buf = ByteBuffer.wrap(ByteArray(36))
+        buf.putInt(sType)
+        buf.putLong(s)
+        buf.putInt(pType)
+        buf.putLong(p)
+        buf.putInt(oType)
+        buf.putLong(o)
+        return buf.array().toBase64()
     }
 
     /**
