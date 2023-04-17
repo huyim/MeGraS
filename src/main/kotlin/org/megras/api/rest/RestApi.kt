@@ -43,7 +43,11 @@ object RestApi {
         }.exception(RestErrorStatus::class.java) { e, ctx ->
             ctx.status(e.statusCode)
             ctx.result(e.message)
-        }.start(config.httpPort)
+        }.exception(Exception::class.java) { e, ctx ->
+            e.printStackTrace()
+        }
+
+            .start(config.httpPort)
     }
 
     fun stop() {

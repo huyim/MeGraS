@@ -2,6 +2,8 @@ package org.megras.graphstore
 
 import org.megras.data.graph.Quad
 import org.megras.data.graph.QuadValue
+import org.megras.data.graph.StringValue
+import org.megras.data.graph.VectorValue
 
 open class BasicQuadSet(private val quads: Set<Quad>) : QuadSet, Set<Quad> by quads {
 
@@ -43,6 +45,11 @@ open class BasicQuadSet(private val quads: Set<Quad>) : QuadSet, Set<Quad> by qu
     override fun toSet(): Set<Quad> = quads
 
     override fun plus(other: QuadSet): QuadSet = BasicQuadSet(quads + other.toSet())
+    override fun nearestNeighbor(predicate: QuadValue, `object`: VectorValue, count: Int, distance: Distance): QuadSet {
+        TODO("Not yet implemented")
+    }
+
+    override fun textFilter(filterText: String): QuadSet = BasicQuadSet(quads.filter { it.`object` is StringValue && it.`object`.value.contains(filterText) }.toSet())
 
 
 }

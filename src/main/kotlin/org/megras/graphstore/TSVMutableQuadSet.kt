@@ -4,6 +4,7 @@ import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
 import com.github.doyaaaaaken.kotlincsv.dsl.csvWriter
 import org.megras.data.graph.Quad
 import org.megras.data.graph.QuadValue
+import org.megras.data.graph.VectorValue
 import java.io.File
 
 class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
@@ -85,6 +86,13 @@ class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
     override fun toSet(): Set<Quad> = cache.toSet()
 
     override fun plus(other: QuadSet): QuadSet = cache.plus(other)
+    override fun nearestNeighbor(predicate: QuadValue, `object`: VectorValue, count: Int, distance: Distance): QuadSet {
+        TODO("Not yet implemented")
+    }
+
+    override fun textFilter(filterText: String): QuadSet {
+        TODO("Not yet implemented")
+    }
 
     override val size: Int
         get() = cache.size

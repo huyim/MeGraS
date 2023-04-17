@@ -84,6 +84,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         catchExists { client.create(CreateIndex("megras.literal_string", "id", CottontailGrpc.IndexType.BTREE_UQ)) }
         catchExists { client.create(CreateIndex("megras.literal_string", "value", CottontailGrpc.IndexType.BTREE)) }
+        catchExists { client.create(CreateIndex("megras.literal_string", "value", CottontailGrpc.IndexType.LUCENE)) }
 
         catchExists {
             client.create(
@@ -726,9 +727,15 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         Expression(column, "=", id)
     )
 
+    private fun filterExpression(column: String, type: Int, ids: Collection<Long>) = And(
+        Expression("${column}_type", "=", type),
+        Expression(column, "in", ids)
+    )
+
     private fun subjectFilterExpression(type: Int, id: Long) = filterExpression("s", type, id)
     private fun predicateFilterExpression(type: Int, id: Long) = filterExpression("p", type, id)
     private fun objectFilterExpression(type: Int, id: Long) = filterExpression("o", type, id)
+    private fun objectFilterExpression(type: Int, ids: Collection<Long>) = filterExpression("o", type, ids)
 
     private fun getQuadId(subject: Pair<Int, Long>, predicate: Pair<Int, Long>, `object`: Pair<Int, Long>): Long? {
         val result = client.query(
@@ -988,6 +995,47 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
     override fun plus(other: QuadSet): QuadSet {
         TODO("Not yet implemented")
+    }
+
+    override fun nearestNeighbor(predicate: QuadValue, `object`: VectorValue, count: Int, distance: Distance): QuadSet {
+        TODO("Not yet implemented")
+    }
+
+    override fun textFilter(filterText: String): QuadSet {
+
+        val ids = client.query(
+            Query("megras.literal_string")
+                .select("id")
+                .fulltext("value", filterText, "score")
+        )
+
+        val idList = mutableListOf<Long>()
+        while (ids.hasNext()) {
+            idList.add(
+                ids.next().asLong("id")!!
+            )
+        }
+
+        val resultSet = mutableSetOf<Quad>()
+        val result = client.query(
+            Query("megras.quads")
+                .select("*")
+                .where(objectFilterExpression(STRING_LITERAL_TYPE, idList))
+        )
+
+        while (result.hasNext()) {
+
+            val tuple = result.next()
+
+            val s = getQuadValue(tuple.asInt("s_type")!!, tuple.asLong("s")!!) ?: continue
+            val p = getQuadValue(tuple.asInt("p_type")!!, tuple.asLong("p")!!) ?: continue
+            val o = getQuadValue(tuple.asInt("o_type")!!, tuple.asLong("o")!!) ?: continue
+
+            resultSet.add(Quad(tuple.asLong("id"), s, p, o))
+
+        }
+
+        return BasicQuadSet(resultSet)
     }
 
     override val size: Int
