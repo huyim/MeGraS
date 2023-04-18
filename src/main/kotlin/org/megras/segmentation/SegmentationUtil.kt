@@ -229,6 +229,31 @@ object SegmentationUtil {
                 Mask(mask)
             }
 
+            SegmentationType.HILBERT -> {
+                val elements = segmentDefinition.split(",")
+                val dimensions = elements[0].toIntOrNull()
+                val order = elements[1].toIntOrNull()
+
+                val ranges = mutableListOf<Pair<Long, Long>>()
+                elements.forEach { el ->
+                    val range = el.split("-").map { it.toLong() }
+                    when (range.size) {
+                        1 -> ranges.add(range[0] to range[0])
+                        2 -> ranges.add(range[0] to range[1])
+                        else -> return null
+                    }
+                }
+
+                ranges.removeAt(1) // order
+                ranges.removeAt(0) // dimension
+
+                if (dimensions != null && order != null) {
+                    Hilbert(dimensions, order, ranges)
+                } else {
+                    null
+                }
+            }
+
             SegmentationType.CHANNEL -> {
                 val channels = segmentDefinition.split(",")
                 Channel(channels)

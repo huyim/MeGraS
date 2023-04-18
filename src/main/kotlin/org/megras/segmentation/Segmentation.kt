@@ -1,6 +1,8 @@
 package org.megras.segmentation
 
 import org.apache.batik.parser.AWTPathProducer
+import org.davidmoten.hilbert.HilbertCurve
+import org.davidmoten.hilbert.SmallHilbertCurve
 import org.megras.util.extensions.equalsEpsilon
 import org.tinyspline.BSpline
 import java.awt.Shape
@@ -11,7 +13,9 @@ import java.awt.geom.Rectangle2D
 import java.io.StringReader
 import java.lang.Double.max
 import java.lang.Double.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 
 sealed interface Segmentation {
@@ -287,6 +291,38 @@ class BSpline(points: List<Pair<Double, Double>>) : SpaceSegmentation() {
 class Mask(val mask: ByteArray) : Segmentation {
     override val type: SegmentationType = SegmentationType.MASK
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
+}
+
+class Hilbert(dimensions: Int, private val order: Int, private val ranges: List<Pair<Long, Long>>) : Segmentation {
+    override val type: SegmentationType = SegmentationType.HILBERT
+    override val segmentClass: SegmentationClass = SegmentationClass.SPACE
+
+    private val hilbertCurve: SmallHilbertCurve
+
+    init {
+        hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
+    }
+
+    fun isIncluded(vararg relativeCoords: Double): Boolean {
+        // Translate to hilbert space
+        val dim = (2.0).pow(order) - 1
+        val hilbertCoords = relativeCoords.map { (it * dim).roundToLong() }
+
+        val hilbertIndex = hilbertCurve.index(*hilbertCoords.toLongArray())
+
+        val found = ranges.find { r -> r.first <= hilbertIndex && hilbertIndex <= r.second }
+        return found != null
+    }
+
+    fun isRangeIncluded(x1: Double, y1: Double, t1: Double, x2: Double, y2: Double, t2: Double): Boolean {
+        val dim = (2.0).pow(order) - 1
+        val start = longArrayOf((x1 * dim).roundToLong(), (y1 * dim).roundToLong(), (t1 * dim).roundToLong())
+        val end = longArrayOf((x2 * dim).roundToLong(), (y2 * dim).roundToLong(), (t2 * dim).roundToLong())
+        val range = hilbertCurve.query(start, end, 1).first()
+
+        val found = ranges.find { r -> r.first <= range.low() && range.high() <= r.second }
+        return found != null
+    }
 }
 
 class Channel(val selection: List<String>) : ReduceSegmentation() {

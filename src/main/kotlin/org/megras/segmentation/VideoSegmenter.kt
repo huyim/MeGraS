@@ -20,6 +20,7 @@ object VideoSegmenter {
             SegmentationType.BSPLINE,
             SegmentationType.PATH,
             SegmentationType.MASK,
+            SegmentationType.HILBERT,
             SegmentationType.ROTOPOLYGON,
             SegmentationType.ROTOBEZIER,
             SegmentationType.ROTOBSPLINE -> segmentShape(videoStream, segmentation)
@@ -52,6 +53,27 @@ object VideoSegmenter {
         val videoProbe = probe.streams.first { s -> s.codecType == StreamType.VIDEO }
         val fps = videoProbe.rFrameRate.toInt()
 
+        var totalFrames = 0
+        if (segmentation is Hilbert) {
+            FFmpeg.atPath().addInput(ChannelInput.fromChannel(videoStream))
+                .addOutput(
+                    FrameOutput.withConsumerAlpha(
+                        object : FrameConsumer {
+                            override fun consumeStreams(streams: List<Stream?>?) {}
+                            override fun consume(frame: Frame?) {
+                                if (frame != null) {
+                                    totalFrames++
+                                }
+                            }
+                        }
+                    )
+                        .disableStream(StreamType.AUDIO)
+                        .disableStream(StreamType.SUBTITLE)
+                        .disableStream(StreamType.DATA)
+                )
+                .execute()
+        }
+
         FFmpeg.atPath()
             .addInput(ChannelInput.fromChannel(videoStream))
             .setOverwriteOutput(true)
@@ -69,7 +91,8 @@ object VideoSegmenter {
                                     segmentation
                                 }
                                 if (seg == null) return
-                                val segmentMask = ImageSegmenter.toBinary(frame.image, seg) ?: throw RestErrorStatus(403, "Invalid segmentation")
+                                val relativeFrame = frameCounter.toDouble() / totalFrames
+                                val segmentMask = ImageSegmenter.toBinary(frame.image, seg, relativeFrame) ?: return
                                 val segmentedImage = ImageSegmenter.segment(frame.image, segmentMask, BufferedImage.TYPE_4BYTE_ABGR) ?: throw RestErrorStatus(403, "Invalid segmentation")
                                 images.add(segmentedImage)
                                 frameCounter++

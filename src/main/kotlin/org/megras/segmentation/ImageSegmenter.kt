@@ -13,9 +13,19 @@ object ImageSegmenter {
             SegmentationType.POLYGON,
             SegmentationType.PATH,
             SegmentationType.BEZIER,
-            SegmentationType.BSPLINE -> shapeToBinary(image, (segmentation as SpaceSegmentation).shape)
+            SegmentationType.BSPLINE -> generateMaskFromShape(image, (segmentation as SpaceSegmentation).shape)
+            SegmentationType.HILBERT -> generateMaskFromHilbert(image, segmentation as Hilbert)
             SegmentationType.MASK -> (segmentation as Mask).mask
             else -> null
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    fun toBinary(image: BufferedImage, segmentation: Segmentation, relativeFrame: Double): ByteArray? = try {
+        when (segmentation.type) {
+            SegmentationType.HILBERT -> generateMaskFromHilbert(image, segmentation as Hilbert, relativeFrame)
+            else -> toBinary(image, segmentation)
         }
     } catch (e: Exception) {
         null
@@ -58,11 +68,7 @@ object ImageSegmenter {
         }
     }
 
-    private fun shapeToBinary(image: BufferedImage, shape: Shape) : ByteArray {
-        return generateMask(image, shape)
-    }
-
-    private fun generateMask(inputImage: BufferedImage, clippingShape: Shape) : ByteArray {
+    private fun generateMaskFromShape(inputImage: BufferedImage, clippingShape: Shape) : ByteArray {
         val segmentedImage = BufferedImage(inputImage.width, inputImage.height, BufferedImage.TYPE_INT_ARGB)
         val g = segmentedImage.createGraphics() //TODO replace clipping with mask alpha blending to get smooth edges
         g.clip = clippingShape
@@ -83,6 +89,34 @@ object ImageSegmenter {
             }
         }
         return mask
+    }
+
+    fun generateMaskFromHilbert(image: BufferedImage, hilbert: Hilbert, relativeFrame: Double = -1.0): ByteArray? {
+        val mask = ByteArray(image.width * image.height)
+
+        var isRelevant = false
+        for (y in 0 until image.height) {
+            for (x in 0 until image.width) {
+
+                val isIncluded = if (relativeFrame == -1.0) {
+                    hilbert.isIncluded(x.toDouble() / image.width, y.toDouble() / image.height)
+                } else {
+                    hilbert.isIncluded(x.toDouble() / image.width, y.toDouble() / image.height, relativeFrame)
+                }
+
+                if (isIncluded) {
+                    isRelevant = true
+                    mask[y * image.width + x] = 1
+                } else {
+                    mask[y * image.width + x] = 0
+                }
+            }
+        }
+        return if (isRelevant) {
+            mask
+        } else {
+            null
+        }
     }
 
     fun segmentChannel(image: BufferedImage, channel: Channel): BufferedImage {

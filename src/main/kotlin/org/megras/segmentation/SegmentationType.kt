@@ -27,6 +27,8 @@ enum class SegmentationType {
      */
     MASK,
 
+    HILBERT,
+
     CHANNEL,
 
     TIME,
