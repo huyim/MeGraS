@@ -34,7 +34,8 @@ object Cli {
 
     fun init(quads: MutableQuadSet, objectStore: FileSystemObjectStore) {
         clikt = BaseCommand().subcommands(
-            AddFileCommand(quads, objectStore)
+            AddFileCommand(quads, objectStore),
+            ImportCommand(quads)
         )
     }
 
