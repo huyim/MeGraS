@@ -45,13 +45,9 @@ object VideoSegmenter {
     }
 
     private fun segmentShape(videoStream: SeekableByteChannel, segmentation: Segmentation): SeekableInMemoryByteChannel {
-        val out = SeekableInMemoryByteChannel()
-
-        val images = mutableListOf<BufferedImage>()
-
         val probe = FFprobe.atPath().setShowStreams(true).setInput(videoStream).execute()
         val videoProbe = probe.streams.first { s -> s.codecType == StreamType.VIDEO }
-        val fps = videoProbe.rFrameRate.toInt()
+        val frameRate = videoProbe.rFrameRate.toInt()
 
         var totalFrames = 0
         if (segmentation is Hilbert) {
@@ -74,71 +70,7 @@ object VideoSegmenter {
                 .execute()
         }
 
-        FFmpeg.atPath()
-            .addInput(ChannelInput.fromChannel(videoStream))
-            .setOverwriteOutput(true)
-            .addOutput(
-                FrameOutput.withConsumerAlpha(
-                    object : FrameConsumer {
-                        private var frameCounter = 0
-                        override fun consumeStreams(streams: List<Stream?>?) {}
-
-                        override fun consume(frame: Frame?) {
-                            if (frame != null) {
-                                val seg = if (segmentation is Rotoscope) {
-                                    segmentation.interpolate(frameCounter)
-                                } else {
-                                    segmentation
-                                }
-                                if (seg == null) return
-                                val relativeFrame = frameCounter.toDouble() / totalFrames
-                                val segmentMask = ImageSegmenter.toBinary(frame.image, seg, relativeFrame) ?: return
-                                val segmentedImage = ImageSegmenter.segment(frame.image, segmentMask, BufferedImage.TYPE_4BYTE_ABGR) ?: throw RestErrorStatus(403, "Invalid segmentation")
-                                images.add(segmentedImage)
-                                frameCounter++
-                            }
-                        }
-                    }
-                )
-                .disableStream(StreamType.AUDIO)
-                .disableStream(StreamType.SUBTITLE)
-                .disableStream(StreamType.DATA)
-            )
-            .execute()
-
-        FFmpeg.atPath()
-            .addInput(
-                FrameInput.withProducerAlpha(
-                object : FrameProducer {
-                    private var frameCounter = 0
-                    override fun produceStreams(): List<Stream> {
-                        return listOf(
-                            Stream()
-                                .setType(Stream.Type.VIDEO)
-                                .setTimebase(1000L)
-                                .setWidth(images[0].width)
-                                .setHeight(images[0].height)
-                        )
-                    }
-
-                    override fun produce(): Frame? {
-                        if (frameCounter >= images.size) {
-                            return null
-                        }
-
-                        val pts = (frameCounter * 1000 / fps).toLong()
-                        val videoFrame = Frame.createVideoFrame(0, pts, images[frameCounter])
-                        frameCounter++
-
-                        return videoFrame
-                    }
-                }
-            ))
-            .addArguments("-c:v", "libvpx-vp9")
-            .setOverwriteOutput(true)
-            .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
-            .execute()
-        return out
+        return VideoShapeSegmenter(videoStream, segmentation, frameRate, totalFrames, videoProbe.width, videoProbe.height).execute()
     }
 
     private fun segmentTime(videoStream: SeekableByteChannel, time: Time): SeekableInMemoryByteChannel? {

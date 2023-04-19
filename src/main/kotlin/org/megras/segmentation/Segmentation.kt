@@ -298,29 +298,29 @@ class Hilbert(dimensions: Int, private val order: Int, private val ranges: List<
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
 
     private val hilbertCurve: SmallHilbertCurve
+    var relativeTimestamp: Double? = null
+        set(value) {
+            field = value
+        }
 
     init {
         hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
     }
 
     fun isIncluded(vararg relativeCoords: Double): Boolean {
+
         // Translate to hilbert space
         val dim = (2.0).pow(order) - 1
-        val hilbertCoords = relativeCoords.map { (it * dim).roundToLong() }
+        val hilbertCoords = relativeCoords.map { (it * dim).roundToLong() }.toMutableList()
+
+        if (relativeTimestamp != null) {
+            hilbertCoords.add((relativeTimestamp!! * dim).roundToLong())
+        }
 
         val hilbertIndex = hilbertCurve.index(*hilbertCoords.toLongArray())
-
         val found = ranges.find { r -> r.first <= hilbertIndex && hilbertIndex <= r.second }
-        return found != null
-    }
 
-    fun isRangeIncluded(x1: Double, y1: Double, t1: Double, x2: Double, y2: Double, t2: Double): Boolean {
-        val dim = (2.0).pow(order) - 1
-        val start = longArrayOf((x1 * dim).roundToLong(), (y1 * dim).roundToLong(), (t1 * dim).roundToLong())
-        val end = longArrayOf((x2 * dim).roundToLong(), (y2 * dim).roundToLong(), (t2 * dim).roundToLong())
-        val range = hilbertCurve.query(start, end, 1).first()
-
-        val found = ranges.find { r -> r.first <= range.low() && range.high() <= r.second }
+        relativeTimestamp = null
         return found != null
     }
 }
@@ -405,6 +405,7 @@ class Rotoscope(segmentationType: SegmentationType, val rotoscopeList: List<Roto
     fun interpolate(frame: Int): SpaceSegmentation? {
         if (frame < rotoscopeList.first().frame || frame > rotoscopeList.last().frame) return null
 
+        // TODO: Indexoutofboundsexceptions
         val endIndex = rotoscopeList.indexOfFirst { it.frame >= frame }
         val (endFrame, endPoints) = rotoscopeList[endIndex]
 
