@@ -293,34 +293,41 @@ class Mask(val mask: ByteArray) : Segmentation {
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
 }
 
-class Hilbert(dimensions: Int, private val order: Int, private val ranges: List<Pair<Long, Long>>) : Segmentation {
+class Hilbert(dimensions: Int, order: Int, private val ranges: List<Pair<Long, Long>>) : Segmentation {
     override val type: SegmentationType = SegmentationType.HILBERT
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
 
     private val hilbertCurve: SmallHilbertCurve
+    private val dimensionSize: Double
     var relativeTimestamp: Double? = null
         set(value) {
             field = value
         }
 
     init {
+        require(ranges.all { it.first <= it.second }) {
+            throw IllegalArgumentException("Ranges are not valid.")
+        }
+
         hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
+        require(ranges.all { it.second <= hilbertCurve.maxIndex() }) {
+            throw IllegalArgumentException("Range is out of bounds.")
+        }
+        dimensionSize = (2.0).pow(order) - 1
     }
 
     fun isIncluded(vararg relativeCoords: Double): Boolean {
 
         // Translate to hilbert space
-        val dim = (2.0).pow(order) - 1
-        val hilbertCoords = relativeCoords.map { (it * dim).roundToLong() }.toMutableList()
+        val hilbertCoords = relativeCoords.map { (it * dimensionSize).roundToLong() }.toMutableList()
 
         if (relativeTimestamp != null) {
-            hilbertCoords.add((relativeTimestamp!! * dim).roundToLong())
+            hilbertCoords.add((relativeTimestamp!! * dimensionSize).roundToLong())
         }
 
         val hilbertIndex = hilbertCurve.index(*hilbertCoords.toLongArray())
         val found = ranges.find { r -> r.first <= hilbertIndex && hilbertIndex <= r.second }
 
-        relativeTimestamp = null
         return found != null
     }
 }
