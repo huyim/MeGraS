@@ -270,19 +270,17 @@ object SegmentationUtil {
             }
 
             SegmentationType.TIME -> {
-                val timepoints = segmentDefinition.split(",").mapNotNull {
-                    it.trim().toIntOrNull()
-                }
+                val elements = segmentDefinition.split(",")
 
                 val intervals = mutableListOf<Pair<Int, Int>>()
-                if (timepoints.size % 2 == 0) {
-                    for (i in 0 until timepoints.size / 2) {
-                        intervals.add(Pair(timepoints[i * 2], timepoints[i * 2 + 1]))
+                elements.forEach { el ->
+                    val range = el.split("-").map { it.trim().toInt() }
+                    when (range.size) {
+                        2 -> intervals.add(range[0] to range[1])
+                        else -> return null
                     }
-                    Time(intervals)
-                } else {
-                    null
                 }
+                Time(intervals)
             }
 
             SegmentationType.PLANE -> {
