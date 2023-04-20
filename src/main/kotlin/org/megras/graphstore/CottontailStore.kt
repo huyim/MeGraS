@@ -155,6 +155,9 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     private val uriValueIdCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Pair<Int, Long>, URIValue>()
     private val uriValueValueCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<URIValue, Pair<Int, Long>>()
 
+    private val vectorEntityCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Pair<Int, VectorValue.Type>, Int>()
+    private val vectorPropertyCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Int, Pair<Int, VectorValue.Type>>()
+
 
     private fun getQuadValueId(quadValue: QuadValue): Pair<Int?, Long?> {
 
@@ -428,7 +431,12 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     private fun getVectorEntity(type: VectorValue.Type, length: Int): Int? {
-        //TODO caching
+        val pair = length to type
+        val cached = vectorEntityCache.getIfPresent(pair)
+        if (cached != null) {
+            return cached
+        }
+
         val result = client.query(
             Query("megras.vector_types")
                 .select("id")
@@ -442,7 +450,8 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             val tuple = result.next()
             val id = tuple.asInt("id")
             if (id != null) {
-                //TODO cache
+                vectorEntityCache.put(pair, id)
+                vectorPropertyCache.put(id, pair)
             }
             return id
         }
@@ -451,7 +460,12 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     private fun getVectorProperties(type: Int): Pair<Int, VectorValue.Type>? {
-        //TODO caching
+
+        val cached = vectorPropertyCache.getIfPresent(type)
+        if (cached != null) {
+            return cached
+        }
+
         val result = client.query(
             Query("megras.vector_types")
                 .select("*")
@@ -462,7 +476,9 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         if (result.hasNext()) {
             val tuple = result.next()
-            return tuple.asInt("length")!! to VectorValue.Type.fromByte(tuple.asByte("type")!!)
+            val pair = tuple.asInt("length")!! to VectorValue.Type.fromByte(tuple.asByte("type")!!)
+            vectorEntityCache.put(pair, type)
+            vectorPropertyCache.put(type, pair)
         }
 
         return null
@@ -832,6 +848,36 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         return Quad(id, s, p, o)
     }
 
+    fun getIds(ids: Collection<Long>): List<Quad> {
+
+        val result = client.query(
+            Query("megras.quads")
+                .select("*")
+                .where(Expression("id", "in", ids))
+        )
+
+        if (!result.hasNext()) {
+            return emptyList()
+        }
+
+        val quads = mutableListOf<Quad>()
+
+        while (result.hasNext()) {
+            val tuple = result.next()
+
+            val id = tuple.asLong("id")!!
+
+            val s = getQuadValue(tuple.asInt("s_type")!!, tuple.asLong("s")!!) ?: continue
+            val p = getQuadValue(tuple.asInt("p_type")!!, tuple.asLong("p")!!) ?: continue
+            val o = getQuadValue(tuple.asInt("o_type")!!, tuple.asLong("o")!!) ?: continue
+
+            quads.add(Quad(id, s, p, o))
+        }
+
+        return quads
+
+    }
+
 
     override fun filterSubject(subject: QuadValue): QuadSet {
 
@@ -964,27 +1010,19 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         }
 
-        var selectedIds: Set<Long>? = null
+        val ids = select(
+            listOf(listOfNotNull(
+                subjectFilterIds?.map { subjectFilterExpression(it.first, it.second) as Predicate }
+                    ?.reduce { acc, predicate -> Or(acc, predicate) },
+                predicateFilterIds?.map { predicateFilterExpression(it.first, it.second) as Predicate }
+                    ?.reduce { acc, predicate -> Or(acc, predicate) },
+                objectFilterIds?.map { objectFilterExpression(it.first, it.second) as Predicate }
+                    ?.reduce { acc, predicate -> Or(acc, predicate) }
+            ).reduce { acc, predicate -> And(acc, predicate) }
+            )
+        )
 
-        if (subjectFilterIds != null) {
-            selectedIds = select(subjectFilterIds.map { subjectFilterExpression(it.first, it.second) })
-        }
-
-        if (predicateFilterIds != null) {
-            val ids = select(predicateFilterIds.map { predicateFilterExpression(it.first, it.second) })
-            selectedIds = selectedIds?.intersect(ids) ?: ids
-        }
-
-        if (objectFilterIds != null) {
-            val ids = select(objectFilterIds.map { objectFilterExpression(it.first, it.second) })
-            selectedIds = selectedIds?.intersect(ids) ?: ids
-        }
-
-        if (selectedIds.isNullOrEmpty()) { //should never be null
-            return BasicQuadSet()
-        }
-
-        return BasicMutableQuadSet(selectedIds.mapNotNull { getId(it) }.toMutableSet())
+        return BasicMutableQuadSet(getIds(ids).toMutableSet())
     }
 
     override fun toMutable(): MutableQuadSet = this
