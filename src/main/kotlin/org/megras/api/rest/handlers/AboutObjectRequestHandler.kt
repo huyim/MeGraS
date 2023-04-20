@@ -18,7 +18,7 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
 
         val objectId = ObjectId(ctx.pathParam("objectId"))
 
-        val relevant = quads.filter(setOf(objectId), null,null) + quads.filter(null, null, setOf(objectId))
+        var relevant = quads.filter(setOf(objectId), null,null) + quads.filter(null, null, setOf(objectId))
 
         if (quads.isEmpty()) {
             throw RestErrorStatus.notFound
@@ -35,8 +35,14 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
           """.trimIndent()
         )
 
+        var parent = quads.filter(setOf(objectId), setOf(MeGraS.SEGMENT_OF.uri), null).firstOrNull()?.`object`
+        while (parent != null) {
+            relevant += quads.filter(setOf(parent), null, null)
+            parent = quads.filter(setOf(parent), setOf(MeGraS.SEGMENT_OF.uri), null).firstOrNull()?.`object`
+        }
+
         val mediaType = relevant.filterPredicate(MeGraS.MEDIA_TYPE.uri).firstOrNull()?.`object` as? StringValue
-        val mimeType = relevant.filterPredicate(MeGraS.MIME_TYPE.uri).firstOrNull()?.`object` as? StringValue
+        val mimeType = relevant.filterPredicate(MeGraS.CANONICAL_MIME_TYPE.uri).firstOrNull()?.`object` as? StringValue
 
         when(mediaType?.value) {
             MediaType.IMAGE.name -> {
@@ -68,8 +74,8 @@ class AboutObjectRequestHandler(private val quads: QuadSet, private val objectSt
             else -> {/* no preview */}
         }
 
-        buf.append("\n<br><textarea readonly style='width: 100%; min-height: 200px; resize: vertical;'>\n")
-        relevant.forEach {
+        buf.append("\n<br><textarea readonly style='width: 100%; min-height: 500px; resize: vertical;'>\n")
+        relevant.sortedBy { it.subject.toString().length }.forEach {
             buf.append("${it.subject} ${it.predicate} ${it.`object`}\n")
         }
 
