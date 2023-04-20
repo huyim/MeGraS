@@ -3,6 +3,7 @@ package org.megras.segmentation
 import com.github.kokorin.jaffree.LogLevel
 import com.github.kokorin.jaffree.ffmpeg.*
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
+import org.megras.api.rest.RestErrorStatus
 import java.nio.channels.SeekableByteChannel
 
 /**
@@ -41,7 +42,7 @@ class VideoShapeSegmenter(
             .setLogLevel(LogLevel.TRACE)
             .addArguments("-c:a", "copy")
             .addArguments("-c:v", "libvpx-vp9")
-            .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
+            .addOutput(ChannelOutput.toChannel("", out).setFormat("webm"))
             .setContextName("output")
             .execute()
 
@@ -98,8 +99,8 @@ class VideoShapeSegmenter(
 
                 if (seg == null) return null
 
-                val segmentMask = ImageSegmenter.toBinary(videoFrame.image, seg)
-                val segmentedImage = ImageSegmenter.segment(videoFrame.image, segmentMask!!)
+                val segmentMask = ImageSegmenter.toBinary(videoFrame.image, seg) ?: throw RestErrorStatus.invalidSegmentation
+                val segmentedImage = ImageSegmenter.segment(videoFrame.image, segmentMask) ?: throw RestErrorStatus.invalidSegmentation
                 val result: Frame = Frame.createVideoFrame(0, nextVideoFrameTimecode, segmentedImage)
                 nextVideoFrameTimecode += videoFrameDuration
                 frameNumber++

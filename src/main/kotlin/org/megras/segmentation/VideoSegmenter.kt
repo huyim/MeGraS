@@ -12,6 +12,8 @@ import java.util.concurrent.TimeUnit
 
 object VideoSegmenter {
 
+    private val outputFormat = "webm"
+
     fun segment(videoStream: SeekableByteChannel, segmentation: Segmentation): SeekableInMemoryByteChannel? = try {
         when(segmentation.type) {
             SegmentationType.RECT -> segmentRect(videoStream, segmentation as Rect)
@@ -39,7 +41,7 @@ object VideoSegmenter {
             .addInput(ChannelInput.fromChannel(videoStream))
             .setFilter(StreamType.VIDEO, "crop=w=${rect.width}:h=${rect.height}:x=${rect.xmin}:y=${rect.ymin}")
             .setOverwriteOutput(true)
-            .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
+            .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
             .execute()
         return out
     }
@@ -84,7 +86,7 @@ object VideoSegmenter {
             .addInput(ChannelInput.fromChannel(videoStream).setPosition(time.intervals[0].first, TimeUnit.SECONDS)
                 .setDuration(time.intervals[0].second - time.intervals[0].first, TimeUnit.SECONDS))
             .setOverwriteOutput(true)
-            .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
+            .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
             .execute()
         return out
     }
@@ -105,12 +107,12 @@ object VideoSegmenter {
         when(channel.selection[0]) {
             "video" -> {
                 ffmpeg.addArguments("-c:v", "copy").addArgument("-an")
-                    .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
+                    .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
             }
 
             "audio" -> {
                 ffmpeg.addArguments("-c:a", "copy").addArgument("-vn")
-                    .addOutput(ChannelOutput.toChannel("", out).setFormat("matroska"))
+                    .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
             }
         }
 

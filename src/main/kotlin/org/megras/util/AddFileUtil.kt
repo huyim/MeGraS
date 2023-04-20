@@ -122,7 +122,7 @@ object AddFileUtil {
                         .addArguments("-c:v", "libvpx-vp9")
                         .addArguments("-c:a", "libvorbis")
                         .setOverwriteOutput(true)
-                        .addOutput(ChannelOutput.toChannel("", outStream).setFormat("matroska"))
+                        .addOutput(ChannelOutput.toChannel("", outStream).setFormat("webm"))
                         .execute()
 
                     val buf = outStream.array()
@@ -133,7 +133,7 @@ object AddFileUtil {
 
                     val descriptor = StoredObjectDescriptor(
                         id,
-                        MimeType.MKV,
+                        MimeType.WEBM,
                         buf.size.toLong()
                     )
                     objectStore.store(inStream, descriptor)
