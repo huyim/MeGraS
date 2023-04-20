@@ -27,7 +27,7 @@ dependencies {
     def javalinVersion = '5.1.1'
     def log4jVersion = '2.17.1'
     def jlineVersion = '3.21.0'
-    def jacksonVersion = '2.13.1'
+    def jacksonVersion = '2.13.4.1'
     def scrimageVersion = '4.0.31'
     def twelvemonkeysVersion = '3.8.2'
     def cottontaildbDriverVerion='0.14.4-SNAPSHOT'
@@ -67,7 +67,7 @@ dependencies {
     implementation group: 'com.sksamuel.scrimage', name: 'scrimage-webp', version: scrimageVersion
 
     /* CSV */
-    implementation group: 'com.github.doyaaaaaken', name: 'kotlin-csv-jvm', version: '1.2.0'
+    implementation group: 'com.github.doyaaaaaken', name: 'kotlin-csv-jvm', version: '1.9.0'
 
     /* Image decoding */
     implementation group: 'com.twelvemonkeys.imageio',  name: 'imageio-jpeg',       version: twelvemonkeysVersion
