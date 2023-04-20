@@ -16,7 +16,7 @@ repositories {
 }
 
 application {
-    getMainClass().set('org.mgras.MeGraS')
+    getMainClass().set('org.megras.MeGraS')
     applicationDefaultJvmArgs = ["-Xms2G", "-Xmx4G"]
 }
 // Required for shadow
