@@ -32,7 +32,14 @@ sealed class QuadValue {
             value.endsWith("^^String") -> StringValue(value.substringBeforeLast("^^String"))
             value.endsWith("^^Long") -> LongValue(value.substringAfterLast("^^Long").toLongOrNull() ?: 0L)
             value.endsWith("^^Double") -> DoubleValue(value.substringAfterLast("^^Double").toDoubleOrNull() ?: Double.NaN)
-            //TODO parse vectors
+            value.startsWith("[") -> when { //vectors
+                value.endsWith("]") || value.endsWith("]^^DoubleVector") -> {
+                    DoubleVectorValue.parse(value)
+                }
+                value.endsWith("]^^LongVector") -> LongVectorValue.parse(value)
+                else -> StringValue(value) //not a valid vector after all
+
+            }
             else -> StringValue(value)
         }
         fun of(value: Long) = LongValue(value)
@@ -56,9 +63,7 @@ data class StringValue(val value: String): QuadValue() {
 
         other as StringValue
 
-        if (value != other.value) return false
-
-        return true
+        return value == other.value
     }
 
     override fun hashCode(): Int {
@@ -73,9 +78,7 @@ data class LongValue(val value: Long): QuadValue() {
 
         other as LongValue
 
-        if (value != other.value) return false
-
-        return true
+        return value == other.value
     }
 
     override fun hashCode(): Int {
@@ -90,9 +93,7 @@ data class DoubleValue(val value: Double): QuadValue() {
 
         other as DoubleValue
 
-        if (value != other.value) return false
-
-        return true
+        return value == other.value
     }
 
     override fun hashCode(): Int {
@@ -166,11 +167,29 @@ open class VectorValue(val type: Type, val length: Int) : QuadValue() {
 
     }
 
-
-
 }
 
 class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vector.size) {
+
+    companion object {
+        fun parse(string: String): DoubleVectorValue {
+
+            var s = string.trim()
+            s = if (string.startsWith("[")) string.substringAfter('[') else string
+            s = if (string.endsWith("^^DoubleVector")) string.substringBefore("^^DoubleVector") else string
+            s = if (string.endsWith("]")) string.substringBefore("]") else string
+
+            val numbers = s.split(',').map { it.trim().toDoubleOrNull() }
+
+            if (numbers.any { it == null }) {
+                return DoubleVectorValue(DoubleArray(0))
+            }
+
+            return DoubleVectorValue(numbers.filterNotNull().toDoubleArray())
+
+        }
+    }
+
     constructor(values: List<Double>) : this(values.toDoubleArray())
 //    constructor(values: List<Float>) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
     constructor(values: FloatArray) : this(DoubleArray(values.size) { i -> values[i].toDouble() })
@@ -181,9 +200,7 @@ class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vect
 
         other as DoubleVectorValue
 
-        if (!vector.contentEquals(other.vector)) return false
-
-        return true
+        return vector.contentEquals(other.vector)
     }
 
     override fun hashCode(): Int {
@@ -192,6 +209,25 @@ class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vect
 }
 
 class LongVectorValue(val vector: LongArray) : VectorValue(Type.Long, vector.size) {
+
+    companion object {
+        fun parse(string: String): LongVectorValue {
+
+            var s = string.trim()
+            s = if (string.startsWith("[")) string.substringAfter('[') else string
+            s = if (string.endsWith("^^LongVector")) string.substringBefore("^^LongVector") else string
+            s = if (string.endsWith("]")) string.substringBefore("]") else string
+
+            val numbers = s.split(',').map { it.trim().toLongOrNull() }
+
+            if (numbers.any { it == null }) {
+                return LongVectorValue(LongArray(0))
+            }
+
+            return LongVectorValue(numbers.filterNotNull().toLongArray())
+
+        }
+    }
 
     constructor(values: List<Long>) : this(values.toLongArray())
 //    constructor(values: List<Int>) : this(LongArray(values.size) { i -> values[i].toLong() })
@@ -203,9 +239,7 @@ class LongVectorValue(val vector: LongArray) : VectorValue(Type.Long, vector.siz
 
         other as LongVectorValue
 
-        if (!vector.contentEquals(other.vector)) return false
-
-        return true
+        return vector.contentEquals(other.vector)
     }
 
     override fun hashCode(): Int {
