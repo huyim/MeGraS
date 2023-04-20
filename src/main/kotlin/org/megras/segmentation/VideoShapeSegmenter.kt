@@ -89,7 +89,7 @@ class VideoShapeSegmenter(
 
                 var seg: Segmentation? = segmentation
                 if (seg is Rotoscope) {
-                    seg = seg.interpolate(frameNumber)
+                    seg = seg.interpolate(nextVideoFrameTimecode.toDouble() / 1000)
                 }
 
                 if (seg is Hilbert) {

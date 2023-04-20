@@ -386,7 +386,7 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
 }
 
-data class RotoscopePair(val frame: Int, val points: List<Pair<Double, Double>>)
+data class RotoscopePair(val time: Double, val points: List<Pair<Double, Double>>)
 
 class Rotoscope(segmentationType: SegmentationType, val rotoscopeList: List<RotoscopePair>) : Segmentation {
     override val type: SegmentationType = segmentationType
@@ -396,23 +396,32 @@ class Rotoscope(segmentationType: SegmentationType, val rotoscopeList: List<Roto
         require(rotoscopeList.size >= 2) {
             throw IllegalArgumentException("Need at least two transition points.")
         }
+
         val initialSize = rotoscopeList.first().points.size
         require(rotoscopeList.all { it.points.size == initialSize }) {
             throw IllegalArgumentException("Need same amount of points for each shape.")
         }
+
+        val timePoints = rotoscopeList.map { it.time }
+        val sortedTimePoints = timePoints.sorted()
+        require(timePoints == sortedTimePoints) {
+            throw IllegalArgumentException("Need input sorted by increasing time points")
+        }
     }
 
-    fun interpolate(frame: Int): SpaceSegmentation? {
-        if (frame < rotoscopeList.first().frame || frame > rotoscopeList.last().frame) return null
+    fun interpolate(time: Double): SpaceSegmentation? {
+        if (time < rotoscopeList.first().time || time > rotoscopeList.last().time) return null
 
-        // TODO: Indexoutofboundsexceptions
-        val endIndex = rotoscopeList.indexOfFirst { it.frame >= frame }
+        var endIndex = rotoscopeList.indexOfFirst { it.time > time }
+        if (endIndex == -1 && rotoscopeList.last().time == time) {
+            endIndex = rotoscopeList.size - 1
+        }
         val (endFrame, endPoints) = rotoscopeList[endIndex]
 
         val startIndex = endIndex - 1
         val (startFrame, startPoints) = rotoscopeList[startIndex]
 
-        val t = (frame - startFrame).toDouble() / (endFrame - startFrame)
+        val t = (time - startFrame) / (endFrame - startFrame)
 
         val newPoints = mutableListOf<Pair<Double, Double>>()
 
