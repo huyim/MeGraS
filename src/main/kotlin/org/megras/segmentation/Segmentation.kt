@@ -270,8 +270,8 @@ class BSpline(points: List<Pair<Double, Double>>) : SpaceSegmentation() {
         spline = spline.toBeziers()
 
         val controlPoints = spline.controlPoints
-        val nBeziers = points.size / spline.order.toInt() / spline.dimension.toInt()
-        val pointsPerBezier = points.size / nBeziers
+        val nBeziers = controlPoints.size / spline.order.toInt() / spline.dimension.toInt()
+        val pointsPerBezier = controlPoints.size / nBeziers
 
         val path = Path2D.Double()
         path.moveTo(controlPoints[0], controlPoints[1])
