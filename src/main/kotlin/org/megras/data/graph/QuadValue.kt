@@ -175,9 +175,9 @@ class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vect
         fun parse(string: String): DoubleVectorValue {
 
             var s = string.trim()
-            s = if (string.startsWith("[")) string.substringAfter('[') else string
-            s = if (string.endsWith("^^DoubleVector")) string.substringBefore("^^DoubleVector") else string
-            s = if (string.endsWith("]")) string.substringBefore("]") else string
+            s = if (s.startsWith("[")) s.substringAfter('[') else s
+            s = if (s.endsWith("^^DoubleVector")) s.substringBefore("^^DoubleVector") else s
+            s = if (s.endsWith("]")) s.substringBefore("]") else s
 
             val numbers = s.split(',').map { it.trim().toDoubleOrNull() }
 
@@ -214,9 +214,9 @@ class LongVectorValue(val vector: LongArray) : VectorValue(Type.Long, vector.siz
         fun parse(string: String): LongVectorValue {
 
             var s = string.trim()
-            s = if (string.startsWith("[")) string.substringAfter('[') else string
-            s = if (string.endsWith("^^LongVector")) string.substringBefore("^^LongVector") else string
-            s = if (string.endsWith("]")) string.substringBefore("]") else string
+            s = if (s.startsWith("[")) s.substringAfter('[') else s
+            s = if (s.endsWith("^^LongVector")) s.substringBefore("^^LongVector") else s
+            s = if (s.endsWith("]")) s.substringBefore("]") else s
 
             val numbers = s.split(',').map { it.trim().toLongOrNull() }
 
