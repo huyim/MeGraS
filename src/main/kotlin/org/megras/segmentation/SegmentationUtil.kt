@@ -259,6 +259,16 @@ object SegmentationUtil {
                 Channel(channels)
             }
 
+            SegmentationType.FREQUENCY -> {
+                val bounds = segmentDefinition.split(",").map { it.toIntOrNull() }
+
+                if (bounds.size == 2 && bounds[0] != null && bounds[1] != null) {
+                    Frequency(bounds[0]!!, bounds[1]!!)
+                } else {
+                    null
+                }
+            }
+
             SegmentationType.TIME -> {
                 val timepoints = segmentDefinition.split(",").mapNotNull {
                     it.trim().toIntOrNull()

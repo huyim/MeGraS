@@ -342,6 +342,22 @@ class Channel(val selection: List<String>) : ReduceSegmentation() {
     }
 }
 
+class Frequency(val low: Int, val high: Int): ReduceSegmentation() {
+
+    init {
+        require(low <= high) {
+            throw IllegalArgumentException("Frequency band is not valid.")
+        }
+    }
+    override fun intersect(rhs: ReduceSegmentation): Boolean {
+        if (rhs !is Frequency) return false
+
+        return this.high >= rhs.low && this.low <= rhs.high
+    }
+
+    override val type: SegmentationType = SegmentationType.FREQUENCY
+}
+
 class Time(val intervals: List<Pair<Int, Int>>) : TimeSegmentation() {
 
     override val type: SegmentationType = SegmentationType.TIME
@@ -370,6 +386,15 @@ class Time(val intervals: List<Pair<Int, Int>>) : TimeSegmentation() {
 
     fun getTimePointsToSegment(): List<Int> {
         return intervals.flatMap { i -> (i.first until i.second).map { j -> j } }
+    }
+
+    fun getIntervalsToDiscard(): List<Pair<Int, Int>> {
+        val newIntervals = mutableListOf<Pair<Int, Int>>()
+
+        for (i in 0 until intervals.size - 1) {
+            newIntervals.add(intervals[i].second to intervals[i+1].first)
+        }
+        return newIntervals
     }
 
     fun getTimePointsToDiscard(start: Int, end: Int): List<Int> {

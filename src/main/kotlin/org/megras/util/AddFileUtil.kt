@@ -93,21 +93,17 @@ object AddFileUtil {
 
             }
 
-            //audio to keep
+            MimeType.AAC,
             MimeType.OGG_A,
             MimeType.MPEG_A,
-            MimeType.AAC,
-            MimeType.MP4_A -> rawDescriptor
-            
-            //audio to transform
+            MimeType.MP4_A,
             MimeType.ADP,
             MimeType.AIF,
             MimeType.AU,
             MimeType.MIDI,
             MimeType.WAV,
             MimeType.WAX,
-            MimeType.WMA -> rawDescriptor
-
+            MimeType.WMA,
             MimeType.MKV,
             MimeType.WEBM,
             MimeType.MOV,

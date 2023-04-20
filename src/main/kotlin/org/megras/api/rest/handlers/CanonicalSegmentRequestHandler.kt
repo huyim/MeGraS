@@ -140,16 +140,8 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 out.toByteArray()
             }
 
-            MediaType.AUDIO -> {
-                val segment = AudioSegmenter.segment(storedObject, segmentation) ?: throw RestErrorStatus.invalidSegmentation
-
-                val out = ByteArrayOutputStream()
-                AudioSystem.write(segment, AudioFileFormat.Type.WAVE, out)
-                out.toByteArray()
-            }
-
-            MediaType.VIDEO -> {
-                val segment = VideoSegmenter.segment(storedObject.byteChannel(), segmentation) ?: throw RestErrorStatus.invalidSegmentation
+            MediaType.AUDIO, MediaType.VIDEO -> {
+                val segment = AudioVideoSegmenter.segment(storedObject.byteChannel(), segmentation) ?: throw RestErrorStatus.invalidSegmentation
                 segment.array()
             }
 
