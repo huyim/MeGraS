@@ -40,12 +40,14 @@ class ImportCommand(private val quads: MutableQuadSet) : CliktCommand(name = "im
                     val values = line.map { QuadValue.of(it) }
                     val quad = Quad(values[0], values[1], values[2])
                     quads.add(quad)
-                    ++counter
+                    if(++counter % 1000 == 0) {
+                        println("processed $counter lines")
+                    }
                 }
             }
         }
 
-        println("Read $counter lines")
+        println("Done reading $counter lines")
 
 
     }
