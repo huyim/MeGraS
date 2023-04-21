@@ -31,7 +31,7 @@ sealed class QuadValue {
             }
             value.endsWith("^^String") -> StringValue(value.substringBeforeLast("^^String"))
             value.endsWith("^^Long") -> LongValue(value.substringAfterLast("^^Long").toLongOrNull() ?: 0L)
-            value.endsWith("^^Double") -> DoubleValue(value.substringAfterLast("^^Double").toDoubleOrNull() ?: Double.NaN)
+            value.endsWith("^^Double") -> DoubleValue(value.substringBeforeLast("^^Double").toDoubleOrNull() ?: Double.NaN)
             value.startsWith("[") -> when { //vectors
                 value.endsWith("]") || value.endsWith("]^^DoubleVector") -> {
                     DoubleVectorValue.parse(value)
