@@ -106,16 +106,25 @@ open class URIValue(private val prefix: String?, protected open val uri: String)
     companion object {
         private fun estimatePrefix(uri: String): Pair<String, String> {
 
-            val cleaned = if (uri.startsWith('<') && uri.endsWith('>')) {
-                uri.substring(1).substringBeforeLast('>')
+            val trimmed = uri.trim()
+
+            val cleaned = if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+                trimmed.substring(1).substringBeforeLast('>')
             } else {
-                uri
+                trimmed
             }
 
             //best effort prefix estimator
             return try {
-                val parsedUri = URI(uri)
+
+                if (cleaned.contains('#') && !cleaned.endsWith('#')) {
+                    val suffix = cleaned.substringAfterLast('#')
+                    return cleaned.substringBeforeLast(suffix) to suffix
+                }
+
+                val parsedUri = URI(cleaned)
                 val host = parsedUri.host ?: ""
+                parsedUri.userInfo
                 val suffix = uri.substringAfter(host)
                 val prefix = uri.substringBefore(suffix)
                 prefix to suffix
