@@ -57,22 +57,24 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             nextSegmentPath = "segment/$nextSegmentType/$nextSegmentDefinition"
 
             val nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
-            val translatedNextSegment = SegmentationUtil.translate(nextSegmentation, segmentation)
+            if (nextSegmentation is Translatable) {
+                nextSegmentation.translate(segmentation)
+            }
 
             // if two segmentations of the same type are not overlapping, no valid result can be computed
-            if (segmentation.segmentClass == nextSegmentation.segmentClass && !SegmentationUtil.overlaps(segmentation, translatedNextSegment)) {
+            if (!segmentation.intersects(nextSegmentation)) {
                 throw RestErrorStatus.emptySegment
             }
 
             // if two segmentations are equivalent, discard the second one
-            if (SegmentationUtil.equivalent(segmentation, translatedNextSegment)) {
+            if (segmentation.equivalentTo(nextSegmentation)) {
                 ctx.redirect("/$currentPath" + (if (tail != null) "/$tail" else ""))
                 return
             }
 
             // if the first segmentation contains the second one, directly apply the second one
-            if (SegmentationUtil.contains(segmentation, translatedNextSegment)) {
-                ctx.redirect("/$objectId/$translatedNextSegment" + (if (tail != null) "/$tail" else ""))
+            if (segmentation.contains(nextSegmentation)) {
+                ctx.redirect("/$objectId/$nextSegmentation" + (if (tail != null) "/$tail" else ""))
                 return
             }
 
@@ -124,7 +126,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
                     else -> {
                         val mask = ImageSegmenter.toBinary(img, segmentation) ?: throw RestErrorStatus.invalidSegmentation
-                        hash = HashUtil.hashToBase64(mask.inputStream(), HashUtil.HashType.MD5)
+                        hash = HashUtil.hashToBase64(mask, HashUtil.HashType.MD5)
 
                         if (findInQuad(hash, ctx, nextSegmentPath)) {
                             logger.info("found cached equivalent")

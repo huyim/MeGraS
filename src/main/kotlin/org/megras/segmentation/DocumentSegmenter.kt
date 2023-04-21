@@ -18,19 +18,19 @@ object DocumentSegmenter {
 
     private fun segmentTime(pdf: PDDocument, time: Time) : PDDocument {
 
-        time.getTimePointsToDiscard(0, pdf.numberOfPages).reversed().forEach { i -> pdf.removePage(i) }
+        time.getTimePointsToDiscard(0, pdf.numberOfPages.toLong()).reversed().forEach { i -> pdf.removePage(i.toInt()) }
 
         return pdf
     }
 
     private fun segmentMask(pdf: PDDocument, mask: Mask): PDDocument? {
 
-        if (pdf.numberOfPages != mask.mask.size) {
+        if (pdf.numberOfPages != mask.mask.size()) {
             return null
         }
 
         for (i in pdf.numberOfPages - 1 downTo 0) {
-            if (mask.mask[i].compareTo(0) == 0) {
+            if (!mask.mask[i]) {
                 pdf.removePage(i)
             }
         }

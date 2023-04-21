@@ -2,7 +2,6 @@ package org.megras.segmentation
 
 import org.apache.batik.parser.AWTPathProducer
 import org.davidmoten.hilbert.HilbertCurve
-import org.davidmoten.hilbert.SmallHilbertCurve
 import org.megras.util.extensions.equalsEpsilon
 import org.tinyspline.BSpline
 import java.awt.Shape
@@ -11,8 +10,7 @@ import java.awt.geom.Area
 import java.awt.geom.Path2D
 import java.awt.geom.Rectangle2D
 import java.io.StringReader
-import java.lang.Double.max
-import java.lang.Double.min
+import java.util.*
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -21,57 +19,96 @@ import kotlin.math.roundToLong
 sealed interface Segmentation {
     val type: SegmentationType
     val segmentClass: SegmentationClass
+
+    fun equivalentTo(rhs: Segmentation): Boolean
+    fun contains(rhs: Segmentation): Boolean
+    fun intersects(rhs: Segmentation): Boolean
 }
 
-abstract class SpaceSegmentation : Segmentation {
+interface Translatable {
+    fun translate(by: Segmentation)
+}
+
+abstract class ShapeSegmentation : Segmentation, Translatable {
+    abstract var shape: Shape
+    abstract var area: Area
+
     override val segmentClass: SegmentationClass
         get() = SegmentationClass.SPACE
 
-    lateinit var shape: Shape
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        if (rhs !is ShapeSegmentation) return false
+        return this.area == rhs.area
+    }
 
-    lateinit var area: Area
+    override fun contains(rhs: Segmentation): Boolean {
+        if (rhs !is ShapeSegmentation) return false
+        rhs.area.subtract(this.area)
+        return rhs.area.isEmpty
+    }
 
-    fun move(dx: Double, dy: Double): SpaceSegmentation {
-        val transform = AffineTransform()
-        transform.translate(dx, dy)
-        this.shape = transform.createTransformedShape(shape)
-        return this
+    override fun intersects(rhs: Segmentation): Boolean {
+        if (rhs !is ShapeSegmentation) return false
+        this.area.intersect(rhs.area)
+        return this.area.isEmpty
+    }
+
+    override fun translate(by: Segmentation) {
+        if (by is ShapeSegmentation) {
+            val transform = AffineTransform()
+            transform.translate(by.area.bounds.minX, by.area.bounds.minY)
+            this.shape = transform.createTransformedShape(shape)
+        }
     }
 }
 
-abstract class TimeSegmentation : Segmentation {
+data class Interval<T>(val low: T, val high: T)
+
+abstract class LineSegmentation : Segmentation {
+    abstract var intervals: List<Interval<Long>>
     override val segmentClass: SegmentationClass
         get() = SegmentationClass.TIME
 
-    abstract fun intersect(rhs: TimeSegmentation): Boolean
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        return this.contains(rhs) && rhs.contains(this)
+    }
+
+    override fun contains(rhs: Segmentation): Boolean {
+        if (rhs !is LineSegmentation) return false
+
+        // All rhs intervals are contained in some intervals
+        return rhs.intervals.all { j ->
+            this.intervals.any { i -> i.low <= j.low && j.high <= i.high }
+        }
+    }
+
+    override fun intersects(rhs: Segmentation): Boolean {
+        if (rhs !is LineSegmentation) return false
+
+        // Any two intervals overlap
+        return this.intervals.any { i ->
+            rhs.intervals.any { j -> i.low <= j.high && j.low <= i.high }
+        }
+    }
 }
 
-abstract class ReduceSegmentation : Segmentation {
+interface ReduceSegmentation : Segmentation {
     override val segmentClass: SegmentationClass
         get() = SegmentationClass.REDUCE
-
-    abstract fun intersect(rhs: ReduceSegmentation): Boolean
 }
 
-class Rect(
-    val xmin: Double,
-    val xmax: Double,
-    val ymin: Double,
-    val ymax: Double,
-    val zmin: Double = Double.NEGATIVE_INFINITY,
-    val zmax: Double = Double.POSITIVE_INFINITY
-) :
-    SpaceSegmentation() {
+interface SpaceSegmentation : Segmentation {
+    override val segmentClass: SegmentationClass
+        get() = SegmentationClass.SPACETIME
+}
+
+class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double) : ShapeSegmentation() {
 
     override val type: SegmentationType = SegmentationType.RECT
-
-    constructor(x: Pair<Double, Double>, y: Pair<Double, Double>, z: Pair<Double, Double> = Pair(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)) : this(x.first, x.second, y.first, y.second, z.first, z.second)
-    constructor(min: Triple<Double, Double, Double>, max: Triple<Double, Double, Double>) : this(min.first, max.first, min.second, max.second, min.third, max.third)
-
-    init {
-        shape = Rectangle2D.Double(xmin, ymin, width, height)
-        area = Area(shape)
-    }
+    val width: Double = xmax - xmin
+    val height: Double = ymax - ymin
+    override var shape: Shape = Rectangle2D.Double(xmin, ymin, width, height)
+    override var area: Area = Area(shape)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -83,8 +120,6 @@ class Rect(
         if (!xmax.equalsEpsilon(other.xmax)) return false
         if (!ymin.equalsEpsilon(other.ymin)) return false
         if (!ymax.equalsEpsilon(other.ymax)) return false
-        if (!zmin.equalsEpsilon(other.zmin)) return false
-        if (!zmax.equalsEpsilon(other.zmax)) return false
 
         return true
     }
@@ -94,96 +129,26 @@ class Rect(
         result = 31 * result + xmax.hashCode()
         result = 31 * result + ymin.hashCode()
         result = 31 * result + ymax.hashCode()
-        result = 31 * result + zmin.hashCode()
-        result = 31 * result + zmax.hashCode()
         return result
     }
 
     override fun toString(): String = "segment/rect/" + "$xmin,$xmax,$ymin,$ymax"
-
-    fun to2dPolygon(): Polygon = Polygon(
-        listOf(
-            xmin to ymin,
-            xmax to ymin,
-            xmax to ymax,
-            xmin to ymax
-        )
-    )
-
-    val width: Double
-        get() = xmax - xmin
-
-    val height: Double
-        get() = ymax - ymin
-
-
-    fun clip(
-        xmin: Double,
-        xmax: Double,
-        ymin: Double,
-        ymax: Double,
-        zmin: Double = Double.NEGATIVE_INFINITY,
-        zmax: Double = Double.POSITIVE_INFINITY
-    ): Rect = Rect(
-        max(this.xmin, xmin), min(this.xmax, xmax),
-        max(this.ymin, ymin), min(this.ymax, ymax),
-        max(this.zmin, zmin), min(this.zmax, zmax)
-    )
 }
 
-class Polygon(val points: List<Pair<Double, Double>>) : SpaceSegmentation() {
+class Polygon(val points: List<Pair<Double, Double>>) : ShapeSegmentation() {
 
     override val type: SegmentationType = SegmentationType.POLYGON
+    override var shape: Shape = java.awt.Polygon(
+        points.map { it.first.roundToInt() }.toIntArray(),
+        points.map { it.second.roundToInt() }.toIntArray(),
+        points.size
+    )
+    override var area: Area = Area(shape)
 
     init {
         require(points.size > 2) {
             throw IllegalArgumentException("A polygon needs at least 3 vertices")
         }
-        shape = java.awt.Polygon(points.map { it.first.roundToInt() }.toIntArray(),
-            points.map { it.second.roundToInt() }.toIntArray(),
-            points.size
-        )
-        area = Area(shape)
-    }
-
-    /**
-     * Returns 2d bounding [Rect]
-     */
-    fun boundingRect(): Rect {
-        var xmin = points.first().first
-        var ymin = points.first().second
-        var xmax = xmin
-        var ymax = ymin
-
-        points.forEach {
-            xmin = min(xmin, it.first)
-            xmax = max(xmax, it.first)
-            ymin = min(ymin, it.second)
-            ymax = max(ymax, it.second)
-        }
-
-        return Rect(xmin, xmax, ymin, ymax)
-    }
-
-    /**
-     * Converts [Polygon] into equivalent 2d [Rect] in case it exists
-     */
-    fun toRect(): Rect? {
-
-        val verts = this.points.toSet()
-
-        if (verts.size != 4) {
-            return null
-        }
-
-        val bounding = this.boundingRect()
-
-        if (this == bounding.to2dPolygon()) {
-            return bounding
-        }
-
-        return null
-
     }
 
     override fun equals(other: Any?): Boolean {
@@ -199,7 +164,6 @@ class Polygon(val points: List<Pair<Double, Double>>) : SpaceSegmentation() {
         if (start == -1) return false
 
         return points.indices.all { other.points[it].equalsEpsilon(points[(it + start) % points.size]) }
-
     }
 
     override fun hashCode(): Int {
@@ -209,31 +173,17 @@ class Polygon(val points: List<Pair<Double, Double>>) : SpaceSegmentation() {
     override fun toString(): String = "segment/polygon/" + points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
-class SVGPath(path: String) : SpaceSegmentation() {
+class SVGPath(path: String) : ShapeSegmentation() {
 
     override val type: SegmentationType = SegmentationType.PATH
-
-    init {
-        shape = AWTPathProducer.createShape(StringReader(path), 0)
-        area = Area(shape)
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as SVGPath
-        if (this.shape.bounds != other.shape.bounds) return false
-        return false
-    }
-
-    override fun hashCode(): Int {
-        return shape.hashCode()
-    }
+    override var shape: Shape = AWTPathProducer.createShape(StringReader(path), 0)
+    override var area: Area = Area(shape)
 }
 
-class BezierSpline(points: List<Pair<Double, Double>>) : SpaceSegmentation() {
+class BezierSpline(val points: List<Pair<Double, Double>>) : ShapeSegmentation() {
     override val type: SegmentationType = SegmentationType.BEZIER
+    override lateinit var shape: Shape
+    override lateinit var area: Area
 
     init {
         val flattenedControlPoints = points.flatMap { listOf(it.first, it.second) }
@@ -252,10 +202,14 @@ class BezierSpline(points: List<Pair<Double, Double>>) : SpaceSegmentation() {
         shape = path
         area = Area(shape)
     }
+
+    override fun toString(): String = "segment/bezier/" + points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
-class BSpline(points: List<Pair<Double, Double>>) : SpaceSegmentation() {
+class BSpline(val points: List<Pair<Double, Double>>) : ShapeSegmentation() {
     override val type: SegmentationType = SegmentationType.BSPLINE
+    override lateinit var shape: Shape
+    override lateinit var area: Area
 
     init {
         val degree: Long = 3
@@ -286,34 +240,59 @@ class BSpline(points: List<Pair<Double, Double>>) : SpaceSegmentation() {
         shape = path
         area = Area(shape)
     }
+
+    override fun toString(): String = "segment/bspline/" + points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
-class Mask(val mask: ByteArray) : Segmentation {
+class Mask(val mask: BitSet) : Segmentation {
     override val type: SegmentationType = SegmentationType.MASK
     override val segmentClass: SegmentationClass = SegmentationClass.SPACE
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        if (rhs !is Mask) return false
+        return this.mask == rhs.mask
+    }
+
+    override fun contains(rhs: Segmentation): Boolean {
+        if (rhs !is Mask) return false
+        if (this.mask.size() != rhs.mask.size()) return false
+
+        for (i in 0 until this.mask.size()) {
+            if (rhs.mask[i] && !this.mask[i]) return false
+        }
+        return true
+    }
+
+    override fun intersects(rhs: Segmentation): Boolean {
+        if (rhs !is Mask) return false
+        return this.mask.intersects(rhs.mask)
+    }
 }
 
-class Hilbert(dimensions: Int, order: Int, private val ranges: List<Pair<Long, Long>>) : Segmentation {
+class Hilbert(dimensions: Int, order: Int, override var intervals: List<Interval<Long>>) : LineSegmentation() {
     override val type: SegmentationType = SegmentationType.HILBERT
-    override val segmentClass: SegmentationClass = SegmentationClass.SPACE
+    override val segmentClass: SegmentationClass
+    private val hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
+    private val dimensionSize = (2.0).pow(order) - 1
 
-    private val hilbertCurve: SmallHilbertCurve
-    private val dimensionSize: Double
     var relativeTimestamp: Double? = null
         set(value) {
             field = value
         }
 
     init {
-        require(ranges.all { it.first <= it.second }) {
+        segmentClass = when (dimensions) {
+            2 -> SegmentationClass.SPACE
+            3 -> SegmentationClass.SPACETIME
+            else -> throw IllegalArgumentException("Dimension not supported.")
+        }
+
+        require(intervals.all { it.low <= it.high }) {
             throw IllegalArgumentException("Ranges are not valid.")
         }
 
-        hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
-        require(ranges.all { it.second <= hilbertCurve.maxIndex() }) {
+        require(intervals.all { it.high <= hilbertCurve.maxIndex() }) {
             throw IllegalArgumentException("Range is out of bounds.")
         }
-        dimensionSize = (2.0).pow(order) - 1
     }
 
     fun isIncluded(vararg relativeCoords: Double): Boolean {
@@ -326,101 +305,107 @@ class Hilbert(dimensions: Int, order: Int, private val ranges: List<Pair<Long, L
         }
 
         val hilbertIndex = hilbertCurve.index(*hilbertCoords.toLongArray())
-        val found = ranges.find { r -> r.first <= hilbertIndex && hilbertIndex <= r.second }
+        val found = intervals.find { i -> i.low <= hilbertIndex && hilbertIndex <= i.high }
 
         return found != null
     }
 }
 
-class Channel(val selection: List<String>) : ReduceSegmentation() {
+class Channel(val selection: List<String>) : ReduceSegmentation {
     override val type: SegmentationType = SegmentationType.CHANNEL
 
-    override fun intersect(rhs: ReduceSegmentation): Boolean {
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun contains(rhs: Segmentation): Boolean {
+        if (rhs !is Channel) return false
+        return rhs.selection.all { this.selection.contains(it) }
+    }
+
+    override fun intersects(rhs: Segmentation): Boolean {
         if (rhs !is Channel) return false
 
-        return selection.intersect(rhs.selection).isNotEmpty()
+        return this.selection.intersect(rhs.selection.toSet()).isNotEmpty()
     }
 }
 
-class Frequency(val low: Int, val high: Int): ReduceSegmentation() {
+class Frequency(val low: Int, val high: Int) : ReduceSegmentation {
+    override val type: SegmentationType = SegmentationType.FREQUENCY
 
     init {
         require(low <= high) {
             throw IllegalArgumentException("Frequency band is not valid.")
         }
     }
-    override fun intersect(rhs: ReduceSegmentation): Boolean {
+
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun contains(rhs: Segmentation): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun intersects(rhs: Segmentation): Boolean {
         if (rhs !is Frequency) return false
 
         return this.high >= rhs.low && this.low <= rhs.high
     }
-
-    override val type: SegmentationType = SegmentationType.FREQUENCY
 }
 
-class Time(val intervals: List<Pair<Int, Int>>) : TimeSegmentation() {
-
+class Time(override var intervals: List<Interval<Long>>) : LineSegmentation(), Translatable {
     override val type: SegmentationType = SegmentationType.TIME
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as Time
-        return this.getTimePointsToSegment() == other.getTimePointsToSegment()
+    override fun translate(by: Segmentation) {
+        if (by is Time) {
+            Time(intervals.map { Interval(it.low + by.intervals[0].low, it.high + by.intervals[0].low) })
+        }
     }
 
-    override fun hashCode(): Int {
-        return intervals.sortedBy { it.first }.hashCode()
-    }
-
-    override fun toString(): String = "segment/time/" + intervals.joinToString(",") { "${it.first},${it.second}" }
-
-    override fun intersect(rhs: TimeSegmentation): Boolean {
-        if (rhs !is Time) return false
-
-        return getTimePointsToSegment().intersect(rhs.getTimePointsToSegment()).isNotEmpty()
-    }
-
-    fun move(dt: Int): Time = Time(intervals.map { it.first + dt to it.second + dt })
-
-    fun getTimePointsToSegment(): List<Int> {
-        return intervals.flatMap { i -> (i.first until i.second).map { j -> j } }
-    }
-
-    fun getIntervalsToDiscard(): List<Pair<Int, Int>> {
-        val newIntervals = mutableListOf<Pair<Int, Int>>()
+    fun getIntervalsToDiscard(): List<Interval<Long>> {
+        val newIntervals = mutableListOf<Interval<Long>>()
 
         for (i in 0 until intervals.size - 1) {
-            newIntervals.add(intervals[i].second to intervals[i+1].first)
+            newIntervals.add(Interval(intervals[i].high, intervals[i + 1].low))
         }
         return newIntervals
     }
 
-    fun getTimePointsToDiscard(start: Int, end: Int): List<Int> {
-        val keep = getTimePointsToSegment().sorted()
-        var sweeper = 0
+    fun getTimePointsToDiscard(start: Long, end: Long): List<Long> {
+        val discard = getIntervalsToDiscard()
 
-        val res = mutableListOf<Int>()
-        for (i in start until end) {
-            if (sweeper < keep.size && keep[sweeper] == i) {
-                sweeper++
-            } else {
-                res.add(i)
-            }
-        }
+        val res = mutableListOf<Long>()
+        (start until intervals[0].low).forEach { i -> res.add(i) }
+        discard.forEach { d -> (d.low + 1 until d.high).forEach { i -> res.add(i) } }
+        (intervals.last().high + 1 until end).forEach { i -> res.add(i) }
+
         return res
     }
+
+    override fun toString(): String = "segment/time/" + intervals.joinToString(",") { "${it.low},${it.high}" }
 }
 
 class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) : Segmentation {
     override val type: SegmentationType = SegmentationType.PLANE
-    override val segmentClass: SegmentationClass = SegmentationClass.SPACE
+    override var segmentClass: SegmentationClass = SegmentationClass.SPACE
+
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        return rhs is Plane && this == rhs
+    }
+
+    override fun contains(rhs: Segmentation): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun intersects(rhs: Segmentation): Boolean {
+        TODO("Not yet implemented")
+    }
 }
 
 data class RotoscopePair(val time: Double, val points: List<Pair<Double, Double>>)
 
-class Rotoscope(segmentationType: SegmentationType, val rotoscopeList: List<RotoscopePair>) : Segmentation {
+class Rotoscope(segmentationType: SegmentationType, val rotoscopeList: List<RotoscopePair>) : SpaceSegmentation {
     override val type: SegmentationType = segmentationType
     override val segmentClass: SegmentationClass = SegmentationClass.SPACETIME
 
@@ -441,7 +426,19 @@ class Rotoscope(segmentationType: SegmentationType, val rotoscopeList: List<Roto
         }
     }
 
-    fun interpolate(time: Double): SpaceSegmentation? {
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun contains(rhs: Segmentation): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override fun intersects(rhs: Segmentation): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    fun interpolate(time: Double): ShapeSegmentation? {
         if (time < rotoscopeList.first().time || time > rotoscopeList.last().time) return null
 
         var endIndex = rotoscopeList.indexOfFirst { it.time > time }

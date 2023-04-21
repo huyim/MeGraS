@@ -3,17 +3,18 @@ package org.megras.segmentation
 import java.awt.Color
 import java.awt.Shape
 import java.awt.image.BufferedImage
+import java.util.*
 
 
 object ImageSegmenter {
 
-    fun toBinary(image: BufferedImage, segmentation: Segmentation): ByteArray? = try {
+    fun toBinary(image: BufferedImage, segmentation: Segmentation): BitSet? = try {
         when (segmentation.type) {
             SegmentationType.RECT,
             SegmentationType.POLYGON,
             SegmentationType.PATH,
             SegmentationType.BEZIER,
-            SegmentationType.BSPLINE -> generateMaskFromShape(image, (segmentation as SpaceSegmentation).shape)
+            SegmentationType.BSPLINE -> generateMaskFromShape(image, (segmentation as ShapeSegmentation).shape)
             SegmentationType.HILBERT -> generateMaskFromHilbert(image, segmentation as Hilbert)
             SegmentationType.MASK -> (segmentation as Mask).mask
             else -> null
@@ -22,15 +23,15 @@ object ImageSegmenter {
         null
     }
 
-    fun segment(image: BufferedImage, mask: ByteArray, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
+    fun segment(image: BufferedImage, mask: BitSet, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
         try {
-            if (image.width * image.height != mask.size) {
+            if (image.width * image.height != mask.size()) {
                 return null
             }
 
             for (y in 0 until image.height) {
                 for (x in 0 until image.width) {
-                    if (mask[y * image.width + x].compareTo(0) == 0) {
+                    if (!mask[y * image.width + x]) {
                         image.setRGB(x, y, 0)
                     }
                 }
@@ -85,7 +86,7 @@ object ImageSegmenter {
         }
     }
 
-    private fun generateMaskFromShape(inputImage: BufferedImage, clippingShape: Shape) : ByteArray {
+    private fun generateMaskFromShape(inputImage: BufferedImage, clippingShape: Shape) : BitSet {
         val segmentedImage = BufferedImage(inputImage.width, inputImage.height, BufferedImage.TYPE_INT_ARGB)
         val g = segmentedImage.createGraphics() //TODO replace clipping with mask alpha blending to get smooth edges
         g.clip = clippingShape
@@ -93,31 +94,25 @@ object ImageSegmenter {
         g.dispose()
 
         val alpha = segmentedImage.alphaRaster
-        val mask = ByteArray(segmentedImage.width * segmentedImage.height)
+        val mask = BitSet(segmentedImage.width * segmentedImage.height)
 
         for (y in 0 until segmentedImage.height) {
             for (x in 0 until segmentedImage.width) {
-                if (alpha.getSample(x, y, 0) == 0) {
-                    mask[y * segmentedImage.width + x] = 0
-                }
-                else {
-                    mask[y * segmentedImage.width + x] = 1
+                if (alpha.getSample(x, y, 0) > 0) {
+                    mask.set(y * segmentedImage.width + x)
                 }
             }
         }
         return mask
     }
 
-    fun generateMaskFromHilbert(image: BufferedImage, hilbert: Hilbert): ByteArray {
-        val mask = ByteArray(image.width * image.height)
+    fun generateMaskFromHilbert(image: BufferedImage, hilbert: Hilbert): BitSet {
+        val mask = BitSet(image.width * image.height)
 
         for (y in 0 until image.height) {
             for (x in 0 until image.width) {
-
                 if (hilbert.isIncluded(x.toDouble() / image.width, y.toDouble() / image.height)) {
-                    mask[y * image.width + x] = 1
-                } else {
-                    mask[y * image.width + x] = 0
+                    mask.set(y * image.width + x)
                 }
             }
         }
@@ -125,7 +120,6 @@ object ImageSegmenter {
     }
 
     fun segmentChannel(image: BufferedImage, channel: Channel): BufferedImage {
-
         for (x in 0 until image.width) {
             for (y in 0 until image.height) {
                 val rgb = image.getRGB(x, y)
