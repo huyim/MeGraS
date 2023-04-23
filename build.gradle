@@ -3,6 +3,7 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.serialization' version '1.7.20'
     id 'java'
     id 'application'
+    id "org.jetbrains.kotlin.kapt" version "1.7.20"
 }
 
 group 'org.megras'
@@ -39,6 +40,10 @@ dependencies {
     implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     implementation group: 'com.fasterxml.jackson.module', name: 'jackson-module-kotlin', version: jacksonVersion
     implementation group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310', version: jacksonVersion
+
+    implementation group: 'io.javalin.community.openapi', name: 'javalin-openapi-plugin', version: javalinVersion
+    implementation group: 'io.javalin.community.openapi', name:'javalin-swagger-plugin', version: javalinVersion
+    kapt("io.javalin.community.openapi:openapi-annotation-processor:$javalinVersion")
 
     /* Log4J */
     implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: log4jVersion
