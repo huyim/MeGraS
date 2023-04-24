@@ -14,6 +14,7 @@ import org.vitrivr.cottontail.client.language.basics.predicate.Predicate
 import org.vitrivr.cottontail.client.language.ddl.CreateEntity
 import org.vitrivr.cottontail.client.language.ddl.CreateIndex
 import org.vitrivr.cottontail.client.language.ddl.CreateSchema
+import org.vitrivr.cottontail.client.language.dml.BatchInsert
 import org.vitrivr.cottontail.client.language.dml.Delete
 import org.vitrivr.cottontail.client.language.dml.Insert
 import org.vitrivr.cottontail.client.language.dql.Query
@@ -155,8 +156,15 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     private val uriValueIdCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Pair<Int, Long>, URIValue>()
     private val uriValueValueCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<URIValue, Pair<Int, Long>>()
 
-    private val vectorEntityCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Pair<Int, VectorValue.Type>, Int>()
-    private val vectorPropertyCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build<Int, Pair<Int, VectorValue.Type>>()
+    private val vectorEntityCache =
+        CacheBuilder.newBuilder().maximumSize(cacheSize).build<Pair<Int, VectorValue.Type>, Int>()
+    private val vectorPropertyCache =
+        CacheBuilder.newBuilder().maximumSize(cacheSize).build<Int, Pair<Int, VectorValue.Type>>()
+
+    private val vectorValueIdCache =
+        CacheBuilder.newBuilder().maximumSize(cacheSize).build<Pair<Int, Long>, VectorValue>()
+    private val vectorValueValueCache =
+        CacheBuilder.newBuilder().maximumSize(cacheSize).build<VectorValue, Pair<Int, Long>>()
 
 
     private fun getQuadValueId(quadValue: QuadValue): Pair<Int?, Long?> {
@@ -180,6 +188,280 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             is URIValue -> getOrAddUriValueId(quadValue)
             is VectorValue -> getOrAddVectorQuadValueId(quadValue)
         }
+
+    }
+
+    private fun getOrAddQuadValueIds(quadValues: Collection<QuadValue>): Map<QuadValue, Pair<Int, Long>> {
+
+        if (quadValues.isEmpty()) {
+            return emptyMap()
+        }
+
+        val returnMap = mutableMapOf<QuadValue, Pair<Int, Long>>()
+
+        val doubleValues = mutableSetOf<DoubleValue>()
+        val stringValues = mutableSetOf<StringValue>()
+        val uriValues = mutableSetOf<URIValue>()
+        val vectorValues = mutableSetOf<VectorValue>()
+
+        //sort by type
+        quadValues.forEach {
+            when (it) {
+                is DoubleValue -> doubleValues.add(it)
+                is LongValue -> returnMap[it] = LONG_LITERAL_TYPE to it.value
+                is StringValue -> stringValues.add(it)
+                is URIValue -> uriValues.add(it)
+                is VectorValue -> vectorValues.add(it)
+            }
+        }
+
+        //cache lookup
+        doubleValues.removeIf {
+            val cached = doubleLiteralIdCache.getIfPresent(it) ?: return@removeIf false
+            returnMap[it] = DOUBLE_LITERAL_TYPE to cached
+            true
+        }
+
+        stringValues.removeIf {
+            val cached = stringLiteralIdCache.getIfPresent(it) ?: return@removeIf false
+            returnMap[it] = STRING_LITERAL_TYPE to cached
+            true
+        }
+
+        uriValues.removeIf {
+            val cached = uriValueValueCache.getIfPresent(it) ?: return@removeIf false
+            returnMap[it] = cached
+            true
+        }
+
+        vectorValues.removeIf {
+            val cached = vectorValueValueCache.getIfPresent(it) ?: return@removeIf false
+            returnMap[it] = cached
+            true
+        }
+
+
+        //database lookup
+
+        if (doubleValues.isNotEmpty()) {
+            val result = client.query(
+                Query("megras.literal_double").select("*").where(
+                    Expression("value", "in", doubleValues.map { it.value })
+                )
+            )
+
+            while (result.hasNext()) {
+                val tuple = result.next()
+                val id = tuple.asLong("id") ?: continue
+                val value = tuple.asDouble("value") ?: continue
+                doubleLiteralValueCache.put(id, value)
+                doubleLiteralIdCache.put(value, id)
+                val v = DoubleValue(value)
+                returnMap[v] = DOUBLE_LITERAL_TYPE to id
+                doubleValues.remove(v)
+            }
+
+            if (doubleValues.isNotEmpty()) {
+
+                val batchInsert = BatchInsert("megras.literal_double").columns("value")
+                doubleValues.forEach {
+                    batchInsert.append(it.value)
+                }
+
+                client.insert(batchInsert)
+
+                val result = client.query(
+                    Query("megras.literal_double").select("*").where(
+                        Expression("value", "in", doubleValues.map { it.value })
+                    )
+                )
+
+                while (result.hasNext()) {
+                    val tuple = result.next()
+                    val id = tuple.asLong("id")!!
+                    val value = tuple.asDouble("value")!!
+                    doubleLiteralValueCache.put(id, value)
+                    doubleLiteralIdCache.put(value, id)
+                    val v = DoubleValue(value)
+                    returnMap[v] = DOUBLE_LITERAL_TYPE to id
+                    doubleValues.remove(v)
+                }
+            }
+
+        }
+
+        if (stringValues.isNotEmpty()) {
+
+            val result = client.query(
+                Query("megras.literal_string")
+                    .select("*")
+                    .where(Expression("value", "in", stringValues.map { it.value }))
+            )
+
+            while (result.hasNext()) {
+                val tuple = result.next()
+                val id = tuple.asLong("id") ?: continue
+                val value = tuple.asString("value") ?: continue
+                stringLiteralValueCache.put(id, value)
+                stringLiteralIdCache.put(value, id)
+                val v = StringValue(value)
+                returnMap[v] = STRING_LITERAL_TYPE to id
+                stringValues.remove(v)
+            }
+
+            if (stringValues.isNotEmpty()) {
+
+                val batchInsert = BatchInsert("megras.literal_string").columns("value")
+                stringValues.forEach {
+                    batchInsert.append(it.value)
+                }
+                client.insert(batchInsert)
+
+                val result = client.query(
+                    Query("megras.literal_string")
+                        .select("*")
+                        .where(Expression("value", "in", stringValues.map { it.value }))
+                )
+
+                while (result.hasNext()) {
+                    val tuple = result.next()
+                    val id = tuple.asLong("id")!!
+                    val value = tuple.asString("value")!!
+                    stringLiteralValueCache.put(id, value)
+                    stringLiteralIdCache.put(value, id)
+                    val v = StringValue(value)
+                    returnMap[v] = STRING_LITERAL_TYPE to id
+                    stringValues.remove(v)
+                }
+            }
+
+        }
+
+        if (uriValues.isNotEmpty()) {
+
+            val prefixValues =
+                uriValues.asSequence().filter { it !is LocalQuadValue }.map { it.prefix() }.toMutableSet()
+            val suffixValues = uriValues.map { it.suffix() }.toMutableSet()
+
+            val prefixIdMap = mutableMapOf<String, Int>()
+            val suffixIdMap = mutableMapOf<String, Long>()
+
+            prefixValues.removeIf {
+                val cached = prefixIdCache.getIfPresent(it) ?: return@removeIf false
+                prefixIdMap[it] = cached
+                true
+            }
+
+            suffixValues.removeIf {
+                val cached = suffixIdCache.getIfPresent(it) ?: return@removeIf false
+                suffixIdMap[it] = cached
+                true
+            }
+
+            if (prefixValues.isNotEmpty()) {
+                val result = client.query(
+                    Query("megras.entity_prefix").select("*").where(
+                        Expression("prefix", "in", prefixValues)
+                    )
+                )
+
+                while (result.hasNext()) {
+                    val tuple = result.next()
+                    val id = tuple.asInt("id") ?: continue
+                    val value = tuple.asString("prefix") ?: continue
+                    prefixValueCache.put(id, value)
+                    prefixIdCache.put(value, id)
+                    prefixIdMap[value] = id
+                    prefixValues.remove(value)
+                }
+
+                if (prefixValues.isNotEmpty()) {
+
+                    val batchInsert = BatchInsert("megras.entity_prefix").columns("prefix")
+                    prefixValues.forEach { value ->
+                        batchInsert.append(value)
+                    }
+                    client.insert(batchInsert)
+
+                    val result = client.query(
+                        Query("megras.entity_prefix").select("*").where(
+                            Expression("prefix", "in", prefixValues)
+                        )
+                    )
+
+                    while (result.hasNext()) {
+                        val tuple = result.next()
+                        val id = tuple.asInt("id")!!
+                        val value = tuple.asString("prefix")!!
+                        prefixValueCache.put(id, value)
+                        prefixIdCache.put(value, id)
+                        prefixIdMap[value] = id
+                        prefixValues.remove(value)
+                    }
+
+                }
+
+            }
+
+            if (suffixValues.isNotEmpty()) {
+
+                val result = client.query(
+                    Query("megras.entity").select("*").where(
+                        Expression("value", "in", suffixValues)
+                    )
+                )
+
+                while (result.hasNext()) {
+                    val tuple = result.next()
+                    val id = tuple.asLong("id") ?: continue
+                    val value = tuple.asString("value") ?: continue
+                    suffixIdCache.put(value, id)
+                    suffixValueCache.put(id, value)
+                    suffixIdMap[value] = id
+                    suffixValues.remove(value)
+                }
+
+                if (suffixValues.isNotEmpty()) {
+
+                    val batchInsert = BatchInsert("megras.entity").columns("value")
+                    suffixValues.forEach { value ->
+                        batchInsert.append(value)
+                    }
+                    client.insert(batchInsert)
+                    val result = client.query(
+                        Query("megras.entity").select("*").where(
+                            Expression("value", "in", suffixValues)
+                        )
+                    )
+
+                    while (result.hasNext()) {
+                        val tuple = result.next()
+                        val id = tuple.asLong("id")!!
+                        val value = tuple.asString("value")!!
+                        suffixIdCache.put(value, id)
+                        suffixValueCache.put(id, value)
+                        suffixIdMap[value] = id
+                        suffixValues.remove(value)
+                    }
+
+                }
+
+            }
+
+            //combine entries
+            uriValues.forEach {
+                returnMap[it] =
+                    (if (it is LocalQuadValue) LOCAL_URI_TYPE else prefixIdMap[it.prefix()]!!) to suffixIdMap[it.suffix()]!!
+            }
+
+        }
+
+        //TODO batch vector
+        vectorValues.forEach {
+            returnMap[it] = getOrAddVectorQuadValueId(it)
+        }
+
+        return returnMap
 
     }
 
@@ -338,7 +620,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         if (result.hasNext()) {
             val tuple = result.next()
-            return when(properties.second) {
+            return when (properties.second) {
                 VectorValue.Type.Double -> DoubleVectorValue(tuple.asDoubleVector("value")!!)
                 VectorValue.Type.Long -> LongVectorValue(tuple.asLongVector("value")!!)
             }
@@ -440,10 +722,12 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         val result = client.query(
             Query("megras.vector_types")
                 .select("id")
-                .where(And(
-                    Expression("length", "=", length),
-                    Expression("type", "=", type.byte)
-                ))
+                .where(
+                    And(
+                        Expression("length", "=", length),
+                        Expression("type", "=", type.byte)
+                    )
+                )
         )
 
         if (result.hasNext()) {
@@ -484,6 +768,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         return null
 
     }
+
     private fun getOrCreateVectorEntity(type: VectorValue.Type, length: Int): Int {
 
 
@@ -528,12 +813,15 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         val result = client.query(
             Query(name)
                 .select("id")
-                .where(Expression("value", "=",
-                    when(value.type) {
-                        VectorValue.Type.Double -> (value as DoubleVectorValue).vector
-                        VectorValue.Type.Long -> (value as LongVectorValue).vector
-                    }
-                ))
+                .where(
+                    Expression(
+                        "value", "=",
+                        when (value.type) {
+                            VectorValue.Type.Double -> (value as DoubleVectorValue).vector
+                            VectorValue.Type.Long -> (value as LongVectorValue).vector
+                        }
+                    )
+                )
         )
 
         val id = if (result.hasNext()) {
@@ -559,8 +847,9 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         val name = "megras.vector_values_${entityId}"
 
         val insertResult = client.insert(
-            Insert(name).value("value",
-                when(value.type) {
+            Insert(name).value(
+                "value",
+                when (value.type) {
                     VectorValue.Type.Double -> (value as DoubleVectorValue).vector
                     VectorValue.Type.Long -> (value as LongVectorValue).vector
                 }
@@ -577,12 +866,15 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         val result = client.query(
             Query(name)
                 .select("id")
-                .where(Expression("value", "=",
-                    when(value.type) {
-                        VectorValue.Type.Double -> (value as DoubleVectorValue).vector
-                        VectorValue.Type.Long -> (value as LongVectorValue).vector
-                    }
-                ))
+                .where(
+                    Expression(
+                        "value", "=",
+                        when (value.type) {
+                            VectorValue.Type.Double -> (value as DoubleVectorValue).vector
+                            VectorValue.Type.Long -> (value as LongVectorValue).vector
+                        }
+                    )
+                )
         )
 
         if (result.hasNext()) {
@@ -765,7 +1057,18 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 //                        ),
 //                        objectFilterExpression(`object`.first, `object`.second)
 //                    )
-                Expression("hash", "=", quadHash(subject.first, subject.second, predicate.first, predicate.second, `object`.first, `object`.second))
+                    Expression(
+                        "hash",
+                        "=",
+                        quadHash(
+                            subject.first,
+                            subject.second,
+                            predicate.first,
+                            predicate.second,
+                            `object`.first,
+                            `object`.second
+                        )
+                    )
                 )
         )
         if (result.hasNext()) {
@@ -1131,7 +1434,56 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     override fun addAll(elements: Collection<Quad>): Boolean {
-        return elements.map { add(it) }.any()
+
+        val values = elements.flatMap {
+            sequenceOf(
+                it.subject, it.predicate, it.`object`
+            )
+        }.toSet()
+
+        val valueIdMap = getOrAddQuadValueIds(values)
+
+        val quadIdMap = elements.mapNotNull {
+            val s = valueIdMap[it.subject]
+            val p = valueIdMap[it.predicate]
+            val o = valueIdMap[it.`object`]
+
+            if (s == null || p == null || o == null) {
+                System.err.println("${it.subject}: $s, ${it.predicate}: $p, ${it.`object`}: $o")
+                return@mapNotNull null
+            }
+
+            quadHash(s.first, s.second, p.first, p.second, o.first, o.second) to it
+        }.toMap().toMutableMap()
+
+        val result = client.query(
+            Query("megras.quads")
+                .select("hash")
+                .where(Expression("hash", "in", quadIdMap.keys))
+        )
+
+        while (result.hasNext()) {
+            val tuple = result.next()
+            val hash = tuple.asString("hash") ?: continue
+            quadIdMap.remove(hash)
+        }
+
+        if (quadIdMap.isEmpty()) {
+            return false
+        }
+
+        val batchInsert = BatchInsert("megras.quads").columns("s_type", "s", "p_type", "p", "o_type", "o", "hash")
+
+        quadIdMap.forEach {
+            val s = valueIdMap[it.value.subject]!!
+            val p = valueIdMap[it.value.predicate]!!
+            val o = valueIdMap[it.value.`object`]!!
+            batchInsert.append(s.first, s.second, p.first, p.second, o.first, o.second, it.key)
+        }
+
+        client.insert(batchInsert)
+
+        return true
     }
 
     override fun clear() {
