@@ -74,6 +74,8 @@ dependencies {
 
     implementation group: 'com.github.davidmoten', name: 'hilbert-curve', version: '0.2.2'
 
+    implementation 'de.sciss:shapeinterpolator:0.1.0'
+
     /* CSV */
     implementation group: 'com.github.doyaaaaaken', name: 'kotlin-csv-jvm', version: '1.2.0'
 

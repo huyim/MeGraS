@@ -1,5 +1,7 @@
-package org.megras.segmentation
+package org.megras.segmentation.media
 
+import org.megras.segmentation.*
+import org.megras.segmentation.type.*
 import java.awt.Color
 import java.awt.Shape
 import java.awt.image.BufferedImage
@@ -9,12 +11,13 @@ import java.util.*
 object ImageSegmenter {
 
     fun toBinary(image: BufferedImage, segmentation: Segmentation): BitSet? = try {
-        when (segmentation.type) {
+        when (segmentation.segmentationType) {
             SegmentationType.RECT,
             SegmentationType.POLYGON,
             SegmentationType.PATH,
             SegmentationType.BEZIER,
-            SegmentationType.BSPLINE -> generateMaskFromShape(image, (segmentation as ShapeSegmentation).shape)
+            SegmentationType.BSPLINE,
+            null -> generateMaskFromShape(image, (segmentation as TwoDimensionalSegmentation).shape)
             SegmentationType.HILBERT -> generateMaskFromHilbert(image, segmentation as Hilbert)
             SegmentationType.MASK -> (segmentation as Mask).mask
             else -> null

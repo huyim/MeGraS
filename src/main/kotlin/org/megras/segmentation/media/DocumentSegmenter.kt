@@ -1,13 +1,17 @@
-package org.megras.segmentation
+package org.megras.segmentation.media
 
 import org.apache.pdfbox.pdmodel.PDDocument
+import org.megras.segmentation.type.Mask
+import org.megras.segmentation.type.Page
+import org.megras.segmentation.type.Segmentation
+import org.megras.segmentation.SegmentationType
 
 
 object DocumentSegmenter {
 
     fun segment(pdf: PDDocument, segmentation: Segmentation): PDDocument? = try {
-        when(segmentation.type) {
-            SegmentationType.TIME -> segmentTime(pdf, segmentation as Time)
+        when(segmentation.segmentationType) {
+            SegmentationType.TIME -> segmentPage(pdf, segmentation as Page)
             SegmentationType.MASK -> segmentMask(pdf, segmentation as Mask)
             else -> null
         }
@@ -16,9 +20,13 @@ object DocumentSegmenter {
         null
     }
 
-    private fun segmentTime(pdf: PDDocument, time: Time) : PDDocument {
-
-        time.getTimePointsToDiscard(0, pdf.numberOfPages.toLong()).reversed().forEach { i -> pdf.removePage(i.toInt()) }
+    private fun segmentPage(pdf: PDDocument, time: Page) : PDDocument {
+        (0 until pdf.numberOfPages).reversed().forEach { pageNumber ->
+            val keep = time.intervals.any { pageNumber >= it.low && pageNumber <= it.high }
+            if (!keep) {
+                pdf.removePage(pageNumber)
+            }
+        }
 
         return pdf
     }

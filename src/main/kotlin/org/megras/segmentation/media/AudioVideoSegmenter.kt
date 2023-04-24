@@ -1,10 +1,12 @@
-package org.megras.segmentation
+package org.megras.segmentation.media
 
 import com.github.kokorin.jaffree.StreamType
 import com.github.kokorin.jaffree.ffmpeg.*
 import com.github.kokorin.jaffree.ffprobe.FFprobe
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 import org.megras.api.rest.RestErrorStatus
+import org.megras.segmentation.*
+import org.megras.segmentation.type.*
 import java.nio.channels.SeekableByteChannel
 import java.util.concurrent.TimeUnit
 
@@ -14,7 +16,7 @@ object AudioVideoSegmenter {
     private const val outputFormat = "webm"
 
     fun segment(stream: SeekableByteChannel, segmentation: Segmentation): SeekableInMemoryByteChannel? = try {
-        when(segmentation.type) {
+        when(segmentation.segmentationType) {
             SegmentationType.RECT -> segmentRect(stream, segmentation as Rect)
             SegmentationType.POLYGON,
             SegmentationType.BEZIER,
@@ -22,9 +24,7 @@ object AudioVideoSegmenter {
             SegmentationType.PATH,
             SegmentationType.MASK,
             SegmentationType.HILBERT,
-            SegmentationType.ROTOPOLYGON,
-            SegmentationType.ROTOBEZIER,
-            SegmentationType.ROTOBSPLINE -> segmentShape(stream, segmentation)
+            SegmentationType.ROTOSCOPE -> segmentShape(stream, segmentation)
             SegmentationType.TIME -> segmentTime(stream, segmentation as Time)
             SegmentationType.FREQUENCY -> segmentFrequency(stream, segmentation as Frequency)
             SegmentationType.CHANNEL -> segmentChannel(stream, segmentation as Channel)
@@ -142,19 +142,19 @@ object AudioVideoSegmenter {
 
         if (time.intervals.size == 1) {
             FFmpeg.atPath()
-                .addInput(ChannelInput.fromChannel(stream).setPosition(time.intervals[0].first, TimeUnit.SECONDS)
-                    .setDuration(time.intervals[0].second - time.intervals[0].first, TimeUnit.SECONDS))
+                .addInput(ChannelInput.fromChannel(stream).setPosition(time.intervals[0].low, TimeUnit.SECONDS)
+                    .setDuration(time.intervals[0].high - time.intervals[0].low, TimeUnit.SECONDS))
                 .setOverwriteOutput(true)
                 .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
                 .execute()
         } else {
             // TODO: decide what to do with video streams
 
-            val firstPoint = time.intervals.first().first
-            val lastPoint = time.intervals.last().second
+            val firstPoint = time.intervals.first().low
+            val lastPoint = time.intervals.last().high
 
             // The parts between segments are muted (need shifting because beginning might be cut away)
-            val muteFilters = time.getIntervalsToDiscard().map { "volume=enable='between(t,${it.first - firstPoint},${it.second - firstPoint})':volume=0" }
+            val muteFilters = time.getIntervalsToDiscard().map { "volume=enable='between(t,${it.low - firstPoint},${it.high - firstPoint})':volume=0" }
 
             FFmpeg.atPath()
                 .addInput(ChannelInput.fromChannel(stream).setPosition(firstPoint, TimeUnit.SECONDS)

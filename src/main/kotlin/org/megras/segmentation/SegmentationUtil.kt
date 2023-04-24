@@ -1,10 +1,11 @@
 package org.megras.segmentation
 
+import org.megras.segmentation.type.*
 import java.util.*
 
 object SegmentationUtil {
 
-    fun shouldSwap(first: SegmentationType, second: SegmentationType): Boolean {
+    fun shouldSwap(first: SegmentationType?, second: SegmentationType?): Boolean {
         return (first != SegmentationType.TIME && second == SegmentationType.TIME) ||
             (first == SegmentationType.CHANNEL && second != SegmentationType.CHANNEL)
     }
@@ -98,7 +99,7 @@ object SegmentationUtil {
 
                 val ranges = mutableListOf<Interval<Long>>()
                 elements.forEach { el ->
-                    val range = el.split("-").map { it.toLong() }
+                    val range = el.split("-").map { it.toLongOrNull() ?: return null }
                     when (range.size) {
                         1 -> ranges.add(Interval(range[0], range[0]))
                         2 -> ranges.add(Interval(range[0], range[1]))
@@ -122,10 +123,10 @@ object SegmentationUtil {
             }
 
             SegmentationType.FREQUENCY -> {
-                val bounds = segmentDefinition.split(",").map { it.toIntOrNull() }
+                val bounds = segmentDefinition.split(",").map { it.toIntOrNull() ?: return null }
 
-                if (bounds.size == 2 && bounds[0] != null && bounds[1] != null) {
-                    Frequency(bounds[0]!!, bounds[1]!!)
+                if (bounds.size == 2) {
+                    Frequency(bounds[0], bounds[1])
                 } else {
                     null
                 }
@@ -134,9 +135,9 @@ object SegmentationUtil {
             SegmentationType.TIME -> {
                 val elements = segmentDefinition.split(",")
 
-                val intervals = mutableListOf<Interval<Long>>()
+                val intervals = mutableListOf<Interval<Double>>()
                 elements.forEach { el ->
-                    val range = el.split("-").map { it.trim().toLong() }
+                    val range = el.split("-").map { it.trim().toDoubleOrNull() ?: return null }
                     when (range.size) {
                         2 -> intervals.add(Interval(range[0], range[1]))
                         else -> return null
@@ -146,8 +147,8 @@ object SegmentationUtil {
             }
 
             SegmentationType.PLANE -> {
-                val params = segmentDefinition.split(",").mapNotNull {
-                    it.trim().toDoubleOrNull()
+                val params = segmentDefinition.split(",").map {
+                    it.trim().toDoubleOrNull() ?: return null
                 }
 
                 if (params.size == 5) {
@@ -158,16 +159,26 @@ object SegmentationUtil {
             }
 
             /**
-             * t0,(x,y),(x,y),...,(x,y),t1,(x,y),(x,y),...,(x,y),...,tn,(x,y),(x,y),...,(x,y)
+             * t0,type,description;t1,type,description;t2,type,description
+             * type and description follow the other guidelines, e.g. rect,0,1,0,1
              */
-            SegmentationType.ROTOPOLYGON -> {
-                buildRotoscopeSegment(SegmentationType.ROTOPOLYGON, segmentDefinition)
-            }
-            SegmentationType.ROTOBEZIER -> {
-                buildRotoscopeSegment(SegmentationType.ROTOBEZIER, segmentDefinition)
-            }
-            SegmentationType.ROTOBSPLINE -> {
-                buildRotoscopeSegment(SegmentationType.ROTOBSPLINE, segmentDefinition)
+            SegmentationType.ROTOSCOPE -> {
+                val rotoscopeList = mutableListOf<RotoscopePair>()
+
+                segmentDefinition.split(";").forEach { part ->
+                    val p = part.split(",")
+                    val time = p[0].toDoubleOrNull()
+                    val segmentationType = p[1]
+                    val segmentationDescription = part.substringAfter("$segmentationType,")
+
+                    val segmentation = parseSegmentation(segmentationType, segmentationDescription)
+                    if (time != null && segmentation is TwoDimensionalSegmentation) {
+                        rotoscopeList.add(RotoscopePair(time, segmentation))
+                    } else {
+                        return null
+                    }
+                }
+                return Rotoscope(rotoscopeList)
             }
 
             else -> null
@@ -187,30 +198,4 @@ object SegmentationUtil {
         }
     }
 
-    private fun buildRotoscopeSegment(type: SegmentationType, input: String) : Rotoscope? {
-        val parts = input.split(Regex("(?<=\\))(,)?(?=\\d)"))
-        val rotoscopeList = mutableListOf<RotoscopePair>()
-
-        parts.forEach { part ->
-            val p = part.split(",(").flatMap { it.split("),")}.map { it.replace(")", "") }
-            val timePoint = p[0].toDoubleOrNull()
-            val vertices = p.subList(1, p.size).map { chunk ->
-                val coords = chunk.split(",").map { it.toDoubleOrNull() }
-                if (coords.any { it == null }) {
-                    null
-                } else if (coords.size < 2) {
-                    null
-                } else {
-                    coords[0]!! to coords[1]!!
-                }
-            }
-            val finalVertices = vertices.filterNotNull()
-            if (timePoint != null && vertices.size == finalVertices.size) {
-                rotoscopeList.add(RotoscopePair(timePoint, finalVertices))
-            } else {
-                return null
-            }
-        }
-        return Rotoscope(type, rotoscopeList)
-    }
 }

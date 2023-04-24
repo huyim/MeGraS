@@ -1,9 +1,12 @@
-package org.megras.segmentation
+package org.megras.segmentation.media
 
 import com.github.kokorin.jaffree.LogLevel
 import com.github.kokorin.jaffree.ffmpeg.*
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 import org.megras.api.rest.RestErrorStatus
+import org.megras.segmentation.type.Hilbert
+import org.megras.segmentation.type.Rotoscope
+import org.megras.segmentation.type.Segmentation
 import java.nio.channels.SeekableByteChannel
 
 /**

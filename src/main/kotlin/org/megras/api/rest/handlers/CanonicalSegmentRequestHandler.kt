@@ -12,21 +12,21 @@ import org.megras.data.fs.StoredObjectId
 import org.megras.data.graph.LocalQuadValue
 import org.megras.data.graph.Quad
 import org.megras.data.graph.StringValue
-import org.megras.data.mime.MimeType
 import org.megras.data.model.MediaType
 import org.megras.data.schema.MeGraS
 import org.megras.data.schema.SchemaOrg
 import org.megras.graphstore.MutableQuadSet
 import org.megras.id.ObjectId
 import org.megras.segmentation.*
+import org.megras.segmentation.media.*
+import org.megras.segmentation.type.Channel
+import org.megras.segmentation.type.Translatable
 import org.megras.util.HashUtil
 import org.slf4j.LoggerFactory
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
-import javax.sound.sampled.AudioFileFormat
-import javax.sound.sampled.AudioSystem
 
 
 class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private val objectStore: FileSystemObjectStore) : GetRequestHandler {
@@ -79,7 +79,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             }
 
             // reorder based on the segmentation types
-            if (SegmentationUtil.shouldSwap(segmentation.type, nextSegmentation.type)) {
+            if (SegmentationUtil.shouldSwap(segmentation.segmentationType, nextSegmentation.segmentationType)) {
                 ctx.redirect("/$objectId/$nextSegmentPath/$segmentPath" + (if (tail != null) "/$tail" else ""))
                 return
             }
@@ -119,7 +119,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 val segment: BufferedImage?
                 var hash: String? = null
 
-                when(segmentation.type) {
+                when(segmentation.segmentationType) {
                     SegmentationType.CHANNEL -> {
                         segment = ImageSegmenter.segmentChannel(img, segmentation as Channel)
                     }

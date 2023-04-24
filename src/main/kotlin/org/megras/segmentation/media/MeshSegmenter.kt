@@ -1,12 +1,15 @@
-package org.megras.segmentation
+package org.megras.segmentation.media
 
 import de.javagl.obj.*
+import org.megras.segmentation.type.Plane
+import org.megras.segmentation.type.Segmentation
+import org.megras.segmentation.SegmentationType
 
 
 object MeshSegmenter {
 
     fun segment(obj: Obj, segmentation: Segmentation): Obj? = try {
-        when(segmentation.type) {
+        when(segmentation.segmentationType) {
             SegmentationType.PLANE -> segmentPlane(obj, segmentation as Plane)
             else -> null
         }

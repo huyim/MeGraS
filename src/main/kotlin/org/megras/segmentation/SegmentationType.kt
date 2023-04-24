@@ -33,6 +33,8 @@ enum class SegmentationType {
 
     TIME,
 
+    PAGE,
+
     FREQUENCY,
 
     /**
@@ -42,18 +44,8 @@ enum class SegmentationType {
     PLANE,
 
     /**
-     * space-time transition (rotoscoping) of polygonal shape
+     * space-time transition (rotoscoping) of an arbitrary shape
      */
-    ROTOPOLYGON,
-
-    /**
-     * space-time transition (rotoscoping) of closed bezier spline
-     */
-    ROTOBEZIER,
-
-    /**
-     * space-time transition (rotoscoping) of closed b-spline
-     */
-    ROTOBSPLINE
+    ROTOSCOPE
 
 }
