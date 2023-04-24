@@ -4,11 +4,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import com.github.ajalt.clikt.parameters.options.validate
 import com.github.ajalt.clikt.parameters.types.int
-import com.github.doyaaaaaken.kotlincsv.dsl.context.ExcessFieldsRowBehaviour
-import com.github.doyaaaaaken.kotlincsv.dsl.context.InsufficientFieldsRowBehaviour
-import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
 import org.megras.data.graph.Quad
 import org.megras.data.graph.QuadValue
 import org.megras.graphstore.MutableQuadSet
@@ -30,32 +26,27 @@ class ImportCommand(private val quads: MutableQuadSet) : CliktCommand(name = "im
             return
         }
 
-        val tsvReader = csvReader {
-            delimiter = '\t'
-            escapeChar = '\\'
-            skipEmptyLine = true
-            insufficientFieldsRowBehaviour = InsufficientFieldsRowBehaviour.IGNORE
-            excessFieldsRowBehaviour = ExcessFieldsRowBehaviour.IGNORE
-        }
-
         val batch = mutableSetOf<Quad>()
 
         var counter = 0
-        tsvReader.open(file) {
-            readAllAsSequence(3).forEach { line ->
-                if (line.size >= 3 ) {
-                    val values = line.map { QuadValue.of(it) }
-                    val quad = Quad(values[0], values[1], values[2])
-                    batch.add(quad)
-                    ++counter
-                    if (batch.size >= batchSize) {
-                        quads.addAll(batch)
-                        batch.clear()
-                        println("processed $counter lines")
-                    }
+
+        val splitter = "\t(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)".toRegex()
+
+        file.forEachLine { raw ->
+            val line = raw.split(splitter)
+            if (line.size >= 3 ) {
+                val values = line.map { QuadValue.of(it) }
+                val quad = Quad(values[0], values[1], values[2])
+                batch.add(quad)
+                ++counter
+                if (batch.size >= batchSize) {
+                    quads.addAll(batch)
+                    batch.clear()
+                    println("processed $counter lines")
                 }
             }
         }
+
 
         if (batch.isNotEmpty()) {
             quads.addAll(batch)
