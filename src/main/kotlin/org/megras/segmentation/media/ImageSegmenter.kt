@@ -28,7 +28,7 @@ object ImageSegmenter {
 
     fun segment(image: BufferedImage, mask: BitSet, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
         try {
-            if (image.width * image.height != mask.size()) {
+            if (image.width * image.height > mask.size()) {
                 return null
             }
 

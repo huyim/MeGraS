@@ -150,9 +150,9 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 val pdf = PDDocument.load(storedObject.inputStream())
                 val segment = DocumentSegmenter.segment(pdf, segmentation) ?: throw RestErrorStatus.invalidSegmentation
 
-                pdf.close()
                 val out = ByteArrayOutputStream()
                 segment.save(out)
+                pdf.close()
                 segment.close()
                 out.toByteArray()
             }

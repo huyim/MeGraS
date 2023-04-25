@@ -11,7 +11,7 @@ object DocumentSegmenter {
 
     fun segment(pdf: PDDocument, segmentation: Segmentation): PDDocument? = try {
         when(segmentation.segmentationType) {
-            SegmentationType.TIME -> segmentPage(pdf, segmentation as Page)
+            SegmentationType.PAGE -> segmentPage(pdf, segmentation as Page)
             SegmentationType.MASK -> segmentMask(pdf, segmentation as Mask)
             else -> null
         }
