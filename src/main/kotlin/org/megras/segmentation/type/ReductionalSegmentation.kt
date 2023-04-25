@@ -26,6 +26,8 @@ class Channel(val selection: List<String>) : ReductionalSegmentation {
 
         return this.selection.intersect(rhs.selection.toSet()).isNotEmpty()
     }
+
+    override fun toString(): String = "segment/channel/" + selection.joinToString(",")
 }
 
 class Frequency(val low: Int, val high: Int) : ReductionalSegmentation {
@@ -51,4 +53,6 @@ class Frequency(val low: Int, val high: Int) : ReductionalSegmentation {
         if (rhs !is Frequency) return false
         return this.high >= rhs.low && this.low <= rhs.high
     }
+
+    override fun toString(): String = "segment/frequency/$low-$high"
 }

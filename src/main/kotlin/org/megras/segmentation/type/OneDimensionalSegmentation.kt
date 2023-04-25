@@ -41,7 +41,7 @@ private operator fun Number.compareTo(low: Number): Int {
     return this.toDouble().compareTo(low.toDouble())
 }
 
-class Hilbert(dimensions: Int, order: Int, override var intervals: List<Interval<Long>>) : OneDimensionalSegmentation() {
+class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<Interval<Long>>) : OneDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.HILBERT
     override val segmentationClass: SegmentationClass
     private val hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
@@ -82,6 +82,8 @@ class Hilbert(dimensions: Int, order: Int, override var intervals: List<Interval
 
         return found != null
     }
+
+    override fun toString(): String = "segment/hilbert/${dimensions},${order}," + intervals.joinToString(",") {"${it.low}-${it.high}"}
 }
 
 class Time(override var intervals: List<Interval<Double>>) : OneDimensionalSegmentation(), Translatable {
@@ -104,7 +106,7 @@ class Time(override var intervals: List<Interval<Double>>) : OneDimensionalSegme
         return newIntervals
     }
 
-    override fun toString(): String = "segment/time/" + intervals.joinToString(",") { "${it.low},${it.high}" }
+    override fun toString(): String = "segment/time/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
 }
 
 class Page(override var intervals: List<Interval<Int>>) : OneDimensionalSegmentation(), Translatable {
@@ -118,5 +120,5 @@ class Page(override var intervals: List<Interval<Int>>) : OneDimensionalSegmenta
         }
     }
 
-    override fun toString(): String = "segment/page/" + intervals.joinToString(",") { "${it.low},${it.high}" }
+    override fun toString(): String = "segment/page/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
 }

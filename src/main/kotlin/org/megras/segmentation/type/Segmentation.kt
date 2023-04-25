@@ -12,11 +12,11 @@ sealed interface Segmentation {
     fun equivalentTo(rhs: Segmentation): Boolean
     fun contains(rhs: Segmentation): Boolean
     fun intersects(rhs: Segmentation): Boolean
+    override fun toString(): String
 }
 
 interface Translatable {
     fun translate(by: Segmentation)
-    override fun toString(): String
 }
 
 class Mask(val mask: BitSet) : Segmentation {
@@ -41,4 +41,6 @@ class Mask(val mask: BitSet) : Segmentation {
         if (rhs !is Mask) return false
         return this.mask.intersects(rhs.mask)
     }
+
+    override fun toString(): String = TODO()
 }

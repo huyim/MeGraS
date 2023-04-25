@@ -99,7 +99,7 @@ object SegmentationUtil {
 
                 val ranges = mutableListOf<Interval<Long>>()
                 elements.forEach { el ->
-                    val range = el.split("-").map { it.toLongOrNull() ?: return null }
+                    val range = el.trim().split("-").map { it.trim().toLongOrNull() ?: return null }
                     when (range.size) {
                         1 -> ranges.add(Interval(range[0], range[0]))
                         2 -> ranges.add(Interval(range[0], range[1]))
@@ -118,32 +118,33 @@ object SegmentationUtil {
             }
 
             SegmentationType.CHANNEL -> {
-                val channels = segmentDefinition.split(",")
+                val channels = segmentDefinition.split(",").map { it.trim() }
                 Channel(channels)
             }
 
             SegmentationType.FREQUENCY -> {
-                val bounds = segmentDefinition.split(",").map { it.toIntOrNull() ?: return null }
+                val intervals = parseIntIntervals(segmentDefinition) ?: return null
 
-                if (bounds.size == 2) {
-                    Frequency(bounds[0], bounds[1])
+                if (intervals.size == 1) {
+                    Frequency(intervals[0].low, intervals[0].high)
                 } else {
                     null
                 }
             }
 
             SegmentationType.TIME -> {
-                val elements = segmentDefinition.split(",")
-
-                val intervals = mutableListOf<Interval<Double>>()
-                elements.forEach { el ->
-                    val range = el.split("-").map { it.trim().toDoubleOrNull() ?: return null }
-                    when (range.size) {
-                        2 -> intervals.add(Interval(range[0], range[1]))
-                        else -> return null
-                    }
-                }
+                val intervals = parseDoubleIntervals(segmentDefinition) ?: return null
                 Time(intervals)
+            }
+
+            SegmentationType.CHARACTER -> {
+                val intervals = parseIntIntervals(segmentDefinition) ?: return null
+                Character(intervals)
+            }
+
+            SegmentationType.PAGE -> {
+                val intervals = parseIntIntervals(segmentDefinition) ?: return null
+                Page(intervals)
             }
 
             SegmentationType.PLANE -> {
@@ -167,8 +168,8 @@ object SegmentationUtil {
 
                 segmentDefinition.split(";").forEach { part ->
                     val p = part.split(",")
-                    val time = p[0].toDoubleOrNull()
-                    val segmentationType = p[1]
+                    val time = p[0].trim().toDoubleOrNull()
+                    val segmentationType = p[1].trim()
                     val segmentationDescription = part.substringAfter("$segmentationType,")
 
                     val segmentation = parseSegmentation(segmentationType, segmentationDescription)
@@ -185,9 +186,37 @@ object SegmentationUtil {
         }
     }
 
+    private fun parseDoubleIntervals(segmentDefinition: String): List<Interval<Double>>? {
+        val elements = segmentDefinition.split(",")
+
+        val intervals = mutableListOf<Interval<Double>>()
+        elements.forEach { el ->
+            val range = el.trim().split("-").map { it.trim().toDoubleOrNull() ?: return null }
+            when (range.size) {
+                2 -> intervals.add(Interval(range[0], range[1]))
+                else -> return null
+            }
+        }
+        return intervals
+    }
+
+    private fun parseIntIntervals(segmentDefinition: String): List<Interval<Int>>? {
+        val elements = segmentDefinition.split(",")
+
+        val intervals = mutableListOf<Interval<Int>>()
+        elements.forEach { el ->
+            val range = el.trim().split("-").map { it.trim().toIntOrNull() ?: return null }
+            when (range.size) {
+                2 -> intervals.add(Interval(range[0], range[1]))
+                else -> return null
+            }
+        }
+        return intervals
+    }
+
     private fun parsePointPairs(input: String) : List<Pair<Double, Double>?> {
         return input.split("),").map { chunk ->
-            val coords = chunk.replaceFirst("(", "").replace(")", "").split(",").map { it.toDoubleOrNull() }
+            val coords = chunk.trim().replaceFirst("(", "").replace(")", "").split(",").map { it.trim().toDoubleOrNull() }
             if (coords.any { it == null }) {
                 null
             } else if (coords.size < 2) {

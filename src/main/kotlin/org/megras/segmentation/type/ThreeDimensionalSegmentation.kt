@@ -23,6 +23,8 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
     override fun intersects(rhs: Segmentation): Boolean {
         TODO("Not yet implemented")
     }
+
+    override fun toString(): String = "segment/plane/$a,$b,$c,$d" + if (above) "1" else "0"
 }
 
 class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation, Translatable {

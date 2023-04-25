@@ -1,5 +1,6 @@
 package org.megras.segmentation.type
 
+import org.apache.batik.ext.awt.geom.ExtendedPathIterator.*
 import org.apache.batik.parser.AWTPathProducer
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
@@ -124,7 +125,25 @@ class SVGPath(path: String) : TwoDimensionalSegmentation() {
     override var shape: Shape = AWTPathProducer.createShape(StringReader(path), 0)
     override var area: Area = Area(shape)
 
-    override fun toString(): String = TODO()
+    override fun toString(): String {
+        val output = StringBuilder()
+        output.append("segment/path/")
+
+        val iter = shape.getPathIterator(null)
+        val coords = FloatArray(6)
+        while (!iter.isDone) {
+            val type = iter.currentSegment(coords)
+            when (type) {
+                SEG_MOVETO -> output.append("M${coords[0]},${coords[1]}")
+                SEG_LINETO -> output.append("L${coords[0]},${coords[1]}")
+                SEG_QUADTO -> output.append("Q${coords[0]},${coords[1]} ${coords[2]},${coords[3]}")
+                SEG_CUBICTO -> output.append("C${coords[0]},${coords[1]} ${coords[2]},${coords[3]} ${coords[4]},${coords[5]}")
+                SEG_CLOSE -> output.append("Z")
+            }
+            iter.next()
+        }
+        return output.toString()
+    }
 }
 
 class BezierSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {

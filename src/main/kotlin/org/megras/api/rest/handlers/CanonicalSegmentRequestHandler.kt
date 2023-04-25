@@ -43,12 +43,11 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         val segmentDefinition = ctx.pathParam("segmentDefinition")
         var nextSegmentPath: String? = null
         val tail = ctx.pathParamMap()["tail"]
-        val currentPath = "$objectId/segment/$segmentType/$segmentDefinition"
 
         val lookInCache = ctx.queryParam("nocache") == null
 
         val segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
-        val segmentPath = "segment/$segmentType/$segmentDefinition"
+        val currentPath = "$objectId/$segmentation"
 
         // check for an additional segmentation
         if (ctx.pathParamMap().containsKey("nextSegmentation")) {
@@ -80,7 +79,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
             // reorder based on the segmentation types
             if (SegmentationUtil.shouldSwap(segmentation.segmentationType, nextSegmentation.segmentationType)) {
-                ctx.redirect("/$objectId/$nextSegmentPath/$segmentPath" + (if (tail != null) "/$tail" else ""))
+                ctx.redirect("/$objectId/$nextSegmentPath/$segmentation" + (if (tail != null) "/$tail" else ""))
                 return
             }
         }
