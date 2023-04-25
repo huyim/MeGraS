@@ -132,7 +132,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                             return
                         }
 
-                        segment = ImageSegmenter.segment(img, mask)
+                        segment = ImageSegmenter.segmentAndCut(img, mask)
                     }
                 }
 

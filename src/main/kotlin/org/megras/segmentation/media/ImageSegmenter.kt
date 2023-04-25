@@ -6,6 +6,8 @@ import java.awt.Color
 import java.awt.Shape
 import java.awt.image.BufferedImage
 import java.util.*
+import kotlin.math.max
+import kotlin.math.min
 
 
 object ImageSegmenter {
@@ -52,9 +54,9 @@ object ImageSegmenter {
         }
     }
 
-    fun segmentAndCut(image: BufferedImage, mask: ByteArray, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
+    fun segmentAndCut(image: BufferedImage, mask: BitSet, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
         try {
-            if (image.width * image.height != mask.size) {
+            if (image.width * image.height > mask.size()) {
                 return null
             }
 
@@ -66,11 +68,11 @@ object ImageSegmenter {
             for (y in 0 until image.height) {
                 for (x in 0 until image.width) {
 
-                    if (mask[y * image.width + x].compareTo(1) == 0) {
-                        top = Math.min(top, y)
-                        bottom = Math.max(bottom, y)
-                        left = Math.min(left, x)
-                        right = Math.max(right, x)
+                    if (mask[y * image.width + x]) {
+                        top = min(top, y)
+                        bottom = max(bottom, y)
+                        left = min(left, x)
+                        right = max(right, x)
                     } else {
                         image.setRGB(x, y, 0)
                     }
