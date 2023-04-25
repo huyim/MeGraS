@@ -33,6 +33,8 @@ enum class SegmentationType {
 
     TIME,
 
+    CHARACTER,
+
     PAGE,
 
     FREQUENCY,

@@ -109,6 +109,20 @@ class Time(override var intervals: List<Interval<Double>>) : OneDimensionalSegme
     override fun toString(): String = "segment/time/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
 }
 
+class Character(override var intervals: List<Interval<Int>>) : OneDimensionalSegmentation(), Translatable {
+    override val segmentationType = SegmentationType.CHARACTER
+    override val segmentationClass = SegmentationClass.TIME
+
+    override fun translate(by: Segmentation) {
+        if (by is Character) {
+            val shift = by.intervals[0].low
+            intervals = intervals.map { Interval(it.low + shift, it.high + shift) }
+        }
+    }
+
+    override fun toString(): String = "segment/character/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
+}
+
 class Page(override var intervals: List<Interval<Int>>) : OneDimensionalSegmentation(), Translatable {
     override val segmentationType = SegmentationType.PAGE
     override val segmentationClass = SegmentationClass.TIME

@@ -150,6 +150,7 @@ object AddFileUtil {
             MimeType.HTML,
             MimeType.JS,
             MimeType.JSON,
+            MimeType.YAML,
             MimeType.TEXT,
             MimeType.PDF,
             MimeType.OBJ -> rawDescriptor

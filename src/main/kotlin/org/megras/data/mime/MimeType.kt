@@ -11,6 +11,7 @@ enum class MimeType(val mimeString: String) {
     HTML("text/html"),
     JS("application/javascript"),
     JSON("application/json"),
+    YAML("text/yaml"),
     TEXT("text/plain"),
 
     //images
@@ -54,6 +55,8 @@ enum class MimeType(val mimeString: String) {
             "html" to HTML,
             "js" to JS,
             "json" to JSON,
+            "yml" to YAML,
+            "yaml" to YAML,
             "log" to TEXT,
             "text" to TEXT,
             "txt" to TEXT,
