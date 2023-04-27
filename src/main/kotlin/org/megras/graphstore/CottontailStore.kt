@@ -126,7 +126,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             client.create(
                 CreateEntity("megras.vector_types")
                     .column("id", Type.INTEGER, autoIncrement = true)
-                    .column("type", Type.BYTE)
+                    .column("type", Type.INTEGER)
                     .column("length", Type.INTEGER)
             )
 
@@ -165,7 +165,6 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         CacheBuilder.newBuilder().maximumSize(cacheSize).build<Pair<Int, Long>, VectorValue>()
     private val vectorValueValueCache =
         CacheBuilder.newBuilder().maximumSize(cacheSize).build<VectorValue, Pair<Int, Long>>()
-
 
     private fun getQuadValueId(quadValue: QuadValue): Pair<Int?, Long?> {
 
@@ -725,7 +724,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
                 .where(
                     And(
                         Expression("length", "=", length),
-                        Expression("type", "=", type.byte)
+                        Expression("type", "=", type.byte.toInt())
                     )
                 )
         )
@@ -775,7 +774,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         fun createEntity(): Int {
 
             val result = client.insert(
-                Insert("megras.vector_types").values("length" to length, "type" to type.byte)
+                Insert("megras.vector_types").values("length" to length, "type" to type.byte.toInt())
             )
 
 
