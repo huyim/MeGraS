@@ -48,6 +48,7 @@ enum class SegmentationType {
     /**
      * space-time transition (rotoscoping) of an arbitrary shape
      */
-    ROTOSCOPE
+    ROTOSCOPE,
 
+    MESH
 }

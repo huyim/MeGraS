@@ -24,7 +24,8 @@ object AudioVideoSegmenter {
             SegmentationType.PATH,
             SegmentationType.MASK,
             SegmentationType.HILBERT,
-            SegmentationType.ROTOSCOPE -> segmentShape(stream, segmentation)
+            SegmentationType.ROTOSCOPE,
+            SegmentationType.MESH -> segmentShape(stream, segmentation)
             SegmentationType.TIME -> segmentTime(stream, segmentation as Time)
             SegmentationType.FREQUENCY -> segmentFrequency(stream, segmentation as Frequency)
             SegmentationType.CHANNEL -> segmentChannel(stream, segmentation as Channel)

@@ -179,7 +179,11 @@ object SegmentationUtil {
                         return null
                     }
                 }
-                return Rotoscope(rotoscopeList)
+                Rotoscope(rotoscopeList)
+            }
+
+            SegmentationType.MESH -> {
+                MeshBody(segmentDefinition)
             }
 
             else -> null
