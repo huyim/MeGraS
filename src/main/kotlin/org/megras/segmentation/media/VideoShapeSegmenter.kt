@@ -18,6 +18,7 @@ class VideoShapeSegmenter(
     val videoStream: SeekableByteChannel,
     val segmentation: Segmentation,
     val frameRate: Int,
+    val shift: Double,
     val totalFrames: Int,
     val width: Int,
     val height: Int
@@ -56,10 +57,11 @@ class VideoShapeSegmenter(
     private fun createFrameProducer(frameIterator: FrameIterator): FrameProducer {
         return object : FrameProducer {
             private var frameNumber = 0
+            private val shiftTimecode = (shift * 1000).toLong()
             private val videoFrameDuration = (1000 / frameRate).toLong()
-            private var timecode: Long = 0
+            private var timecode: Long = shiftTimecode
             private var nextVideoFrame: Frame? = null
-            private var nextVideoFrameTimecode: Long = 0
+            private var nextVideoFrameTimecode: Long = shiftTimecode
             override fun produceStreams(): MutableList<Stream> {
                 val streams: MutableList<Stream> = ArrayList()
                 streams.add(
@@ -77,7 +79,7 @@ class VideoShapeSegmenter(
             override fun produce(): Frame? {
                 var result: Frame? = null
                 if (nextVideoFrameTimecode <= timecode) {
-                    if (nextVideoFrameTimecode == 0L) {
+                    if (nextVideoFrameTimecode == shiftTimecode) {
                         readNextVideoFrames(nextVideoFrameTimecode)
                     }
                     result = produceVideoFrame(nextVideoFrame)

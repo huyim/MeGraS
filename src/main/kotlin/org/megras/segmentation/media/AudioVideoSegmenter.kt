@@ -59,6 +59,11 @@ object AudioVideoSegmenter {
         val videoProbe = probeStream(stream).first { s -> s.codecType == StreamType.VIDEO }
         val frameRate = videoProbe.rFrameRate.toInt()
 
+        val shift = when (segmentation) {
+            is Shiftable -> segmentation.getShiftAmount()
+            else -> 0.0
+        }
+
         var totalFrames = 0
         if (segmentation is Hilbert) {
             FFmpeg.atPath().addInput(ChannelInput.fromChannel(stream))
@@ -80,7 +85,15 @@ object AudioVideoSegmenter {
                 .execute()
         }
 
-        return VideoShapeSegmenter(stream, segmentation, frameRate, totalFrames, videoProbe.width, videoProbe.height).execute()
+        return VideoShapeSegmenter(
+            stream,
+            segmentation,
+            frameRate,
+            shift,
+            totalFrames,
+            videoProbe.width,
+            videoProbe.height
+        ).execute()
     }
 
     /**

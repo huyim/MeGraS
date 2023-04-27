@@ -19,6 +19,10 @@ interface Translatable {
     fun translate(by: Segmentation)
 }
 
+interface Shiftable {
+    fun getShiftAmount(): Double
+}
+
 class Mask(val mask: BitSet) : Segmentation {
     override val segmentationType: SegmentationType = SegmentationType.MASK
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE

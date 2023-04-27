@@ -36,7 +36,7 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
 
 data class RotoscopePair(val time: Double, val space: TwoDimensionalSegmentation)
 
-class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation, Translatable {
+class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation, Translatable, Shiftable {
     override val segmentationType = SegmentationType.ROTOSCOPE
     override val segmentationClass = SegmentationClass.SPACETIME
 
@@ -126,6 +126,8 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         }
     }
 
+    override fun getShiftAmount(): Double = this.rotoscopeList[0].time
+
     override fun toString(): String = "segment/rotoscope/" + rotoscopeList.joinToString(";") {
         val shapeString = it.space.toString().removePrefix("segment/").replace("/", ",")
         "${it.time},${shapeString})"
@@ -162,7 +164,7 @@ data class Vertex(val x: Float, val y: Float) {
     }
 }
 
-class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
+class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation, Shiftable {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
     private val obj: Obj = ObjReader.read(File("$fileName.obj").inputStream())
@@ -260,6 +262,16 @@ class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
         val x = v1.x + (v2.x - v1.x) * t
         val y = v1.y + (v2.y - v1.y) * t
         return Vertex(x, y)
+    }
+
+    override fun getShiftAmount(): Double {
+        // Find minimum z-coordinate
+        var minZ = Float.MAX_VALUE
+        for (v in 0 until obj.numVertices) {
+            val vertex = obj.getVertex(v)
+            if (vertex.z < minZ) minZ = vertex.z
+        }
+        return minZ.toDouble()
     }
 
     override fun toString(): String = "segment/mesh/$fileName"
