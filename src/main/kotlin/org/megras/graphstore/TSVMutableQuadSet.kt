@@ -86,13 +86,9 @@ class TSVMutableQuadSet(private val tsvFile : File) : MutableQuadSet {
     override fun toSet(): Set<Quad> = cache.toSet()
 
     override fun plus(other: QuadSet): QuadSet = cache.plus(other)
-    override fun nearestNeighbor(predicate: QuadValue, `object`: VectorValue, count: Int, distance: Distance): QuadSet {
-        TODO("Not yet implemented")
-    }
+    override fun nearestNeighbor(predicate: QuadValue, `object`: VectorValue, count: Int, distance: Distance): QuadSet = this.cache.nearestNeighbor(predicate, `object`, count, distance)
 
-    override fun textFilter(filterText: String): QuadSet {
-        TODO("Not yet implemented")
-    }
+    override fun textFilter(filterText: String): QuadSet = this.cache.textFilter(filterText)
 
     override val size: Int
         get() = cache.size

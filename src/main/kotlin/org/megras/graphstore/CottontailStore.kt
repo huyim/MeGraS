@@ -4,8 +4,10 @@ import com.google.common.cache.CacheBuilder
 import io.grpc.ManagedChannelBuilder
 import io.grpc.StatusRuntimeException
 import org.megras.data.graph.*
+import org.megras.data.schema.MeGraS
 import org.megras.util.extensions.toBase64
 import org.vitrivr.cottontail.client.SimpleClient
+import org.vitrivr.cottontail.client.language.basics.Direction
 import org.vitrivr.cottontail.client.language.basics.Type
 import org.vitrivr.cottontail.client.language.basics.predicate.And
 import org.vitrivr.cottontail.client.language.basics.predicate.Expression
@@ -609,6 +611,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
     private fun getVectorQuadValue(type: Int, id: Long): VectorValue? {
 
+        val pair = type to id
+
+        val cached = vectorValueIdCache.getIfPresent(pair)
+        if (cached != null) {
+            return cached
+        }
+
         val internalId = -type - VECTOR_ID_OFFSET
 
         val properties = getVectorProperties(internalId) ?: return null
@@ -619,10 +628,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         if (result.hasNext()) {
             val tuple = result.next()
-            return when (properties.second) {
+            val value = when (properties.second) {
                 VectorValue.Type.Double -> DoubleVectorValue(tuple.asDoubleVector("value")!!)
                 VectorValue.Type.Long -> LongVectorValue(tuple.asLongVector("value")!!)
             }
+            vectorValueValueCache.put(value, pair)
+            vectorValueIdCache.put(pair, value)
+            return value
         }
 
         return null
@@ -1338,7 +1350,83 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     override fun nearestNeighbor(predicate: QuadValue, `object`: VectorValue, count: Int, distance: Distance): QuadSet {
-        TODO("Not yet implemented")
+
+        val predId = getQuadValueId(predicate)
+
+        if (predId.first == null || predId.second == null) {
+            return BasicQuadSet()
+        }
+
+        val vectorEntity = getVectorEntity(`object`.type, `object`.length) ?: return BasicQuadSet()
+        val vectorId = -vectorEntity - VECTOR_ID_OFFSET
+
+        val result = client.query(
+            Query("megras.quads")
+                .select("*")
+                .where(
+                    And(
+                        predicateFilterExpression(predId.first!!, predId.second!!),
+                        Expression("o_type", "=", vectorId)
+                    )
+                )
+        )
+
+        if (!result.hasNext()) {
+            return BasicQuadSet()
+        }
+
+        val objectIds = mutableSetOf<Long>()
+
+        val quadIds = mutableListOf<Pair<Long, Long>>() //quad id to object id
+
+        while (result.hasNext()) {
+            val tuple = result.next()
+            val o = tuple.asLong("o")!!
+            objectIds.add(o)
+            quadIds.add(tuple.asLong("id")!! to o)
+        }
+
+
+        val knnResult = client.query(
+            Query("megras.vector_values_${vectorId}")
+                .select("*")
+                .where(Expression("id", "in", objectIds))
+                .distance("value",
+                    when(`object`) {
+                        is DoubleVectorValue -> `object`.vector
+                        is LongVectorValue -> `object`.vector
+                        else -> error("unknown vector value type")
+                    },  distance.cottontail(), "distance")
+                .limit(count.toLong())
+                .order("distance", Direction.ASC)
+
+        )
+
+        if (!knnResult.hasNext()) {
+            return BasicQuadSet()
+        }
+
+        val distances = mutableMapOf<Long, Double>()
+
+        while (knnResult.hasNext()) {
+            val tuple = knnResult.next()
+            distances[tuple.asLong("id")!!] = tuple.asDouble("distance")!!
+        }
+
+        val relevantQuadIds = distances.keys.flatMap { oid -> quadIds.filter { it.second == oid } }.map { it.first }.toSet()
+        val relevantQuads = getIds(relevantQuadIds)
+
+        val ret = BasicMutableQuadSet()
+        ret.addAll(relevantQuads)
+
+        val quadIdMap = quadIds.toMap()
+
+        relevantQuads.forEach { quad ->
+            val distance = distances[quadIdMap[quad.id!!]!!] ?: return@forEach
+            ret.add(Quad(quad.`object`, MeGraS.QUERY_DISTANCE.uri, DoubleValue(distance)))
+        }
+
+        return ret
     }
 
     override fun textFilter(filterText: String): QuadSet {
