@@ -618,7 +618,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             return cached
         }
 
-        val internalId = -type - VECTOR_ID_OFFSET
+        val internalId = -type + VECTOR_ID_OFFSET
 
         val properties = getVectorProperties(internalId) ?: return null
 
@@ -1358,7 +1358,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
         }
 
         val vectorEntity = getVectorEntity(`object`.type, `object`.length) ?: return BasicQuadSet()
-        val vectorId = -vectorEntity - VECTOR_ID_OFFSET
+        val vectorId = -vectorEntity + VECTOR_ID_OFFSET
 
         val result = client.query(
             Query("megras.quads")
@@ -1388,7 +1388,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
 
         val knnResult = client.query(
-            Query("megras.vector_values_${vectorId}")
+            Query("megras.vector_values_${vectorEntity}")
                 .select("*")
                 .where(Expression("id", "in", objectIds))
                 .distance("value",
