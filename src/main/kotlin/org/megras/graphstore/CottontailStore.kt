@@ -32,11 +32,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
 
     private companion object {
+        const val QUAD_TYPE = 0
         const val LOCAL_URI_TYPE = -1
         const val LONG_LITERAL_TYPE = -2
         const val DOUBLE_LITERAL_TYPE = -3
         const val STRING_LITERAL_TYPE = -4
-        const val BINARY_DATA_TYPE = 0
+
+        const val BINARY_DATA_TYPE = -9
         const val VECTOR_ID_OFFSET = -10
     }
 
@@ -115,7 +117,6 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             client.create(
                 CreateEntity("megras.entity")
                     .column("id", Type.LONG, autoIncrement = true)
-//                .column("prefix", Type.INTEGER)
                     .column("value", Type.STRING)
             )
         }
@@ -457,9 +458,94 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         }
 
-        //TODO batch vector
-        vectorValues.forEach {
-            returnMap[it] = getOrAddVectorQuadValueId(it)
+
+        if (vectorValues.isNotEmpty()) {
+
+            vectorValues.groupBy { it.type to it.length }.forEach { (properties, v) ->
+
+                val vectors = v.toMutableSet()
+
+                val entityId = getOrCreateVectorEntity(properties.first, properties.second)
+                val name = "megras.vector_values_${entityId}"
+
+
+                val result = when(properties.first) {
+                    VectorValue.Type.Double -> {
+                        val v = vectors.map { (it as DoubleVectorValue).vector }
+                        client.query(
+                            Query(name).select("*").where(Expression("value", "in", v))
+                        )
+                    }
+                    VectorValue.Type.Long -> {
+                        val v = vectors.map { (it as LongVectorValue).vector }
+                        client.query(
+                            Query(name).select("*").where(Expression("value", "in", v))
+                        )
+                    }
+                }
+
+                while (result.hasNext()) {
+                    val tuple = result.next()
+                    val id = tuple.asLong("id")!!
+                    val value = when (properties.first) {
+                        VectorValue.Type.Double -> DoubleVectorValue(tuple.asDoubleVector("value")!!)
+                        VectorValue.Type.Long -> LongVectorValue(tuple.asLongVector("value")!!)
+                    }
+                    val pair = (-entityId + VECTOR_ID_OFFSET) to id
+                    vectorValueValueCache.put(value, pair)
+                    vectorValueIdCache.put(pair, value)
+                    returnMap[value] = pair
+                    vectors.remove(value)
+                }
+
+                if (vectors.isNotEmpty()) {
+
+                    val insert = BatchInsert(name).columns("value")
+                    vectors.forEach {
+                        insert.append(
+                            when (properties.first) {
+                                VectorValue.Type.Double -> (it as DoubleVectorValue).vector
+                                VectorValue.Type.Long -> (it as LongVectorValue).vector
+                            }
+                        )
+                    }
+                    client.insert(insert)
+
+
+                    val result = when(properties.first) {
+                        VectorValue.Type.Double -> {
+                            val v = vectors.map { (it as DoubleVectorValue).vector }
+                            client.query(
+                                Query(name).select("*").where(Expression("value", "in", v))
+                            )
+                        }
+                        VectorValue.Type.Long -> {
+                            val v = vectors.map { (it as LongVectorValue).vector }
+                            client.query(
+                                Query(name).select("*").where(Expression("value", "in", v))
+                            )
+                        }
+                    }
+
+                    while (result.hasNext()) {
+                        val tuple = result.next()
+                        val id = tuple.asLong("id")!!
+                        val value = when (properties.first) {
+                            VectorValue.Type.Double -> DoubleVectorValue(tuple.asDoubleVector("value")!!)
+                            VectorValue.Type.Long -> LongVectorValue(tuple.asLongVector("value")!!)
+                        }
+                        val pair = (-entityId + VECTOR_ID_OFFSET) to id
+                        vectorValueValueCache.put(value, pair)
+                        vectorValueIdCache.put(pair, value)
+                        returnMap[value] = pair
+                        vectors.remove(value)
+                    }
+
+                }
+
+
+            }
+
         }
 
         return returnMap
@@ -1061,13 +1147,6 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             Query("megras.quads")
                 .select("id")
                 .where(
-//                    And(
-//                        And(
-//                            subjectFilterExpression(subject.first, subject.second),
-//                            predicateFilterExpression(predicate.first, predicate.second)
-//                        ),
-//                        objectFilterExpression(`object`.first, `object`.second)
-//                    )
                     Expression(
                         "hash",
                         "=",
@@ -1391,12 +1470,14 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             Query("megras.vector_values_${vectorEntity}")
                 .select("*")
                 .where(Expression("id", "in", objectIds))
-                .distance("value",
-                    when(`object`) {
+                .distance(
+                    "value",
+                    when (`object`) {
                         is DoubleVectorValue -> `object`.vector
                         is LongVectorValue -> `object`.vector
                         else -> error("unknown vector value type")
-                    },  distance.cottontail(), "distance")
+                    }, distance.cottontail(), "distance"
+                )
                 .limit(count.toLong())
                 .order("distance", Direction.ASC)
 
@@ -1413,7 +1494,8 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             distances[tuple.asLong("id")!!] = tuple.asDouble("distance")!!
         }
 
-        val relevantQuadIds = distances.keys.flatMap { oid -> quadIds.filter { it.second == oid } }.map { it.first }.toSet()
+        val relevantQuadIds =
+            distances.keys.flatMap { oid -> quadIds.filter { it.second == oid } }.map { it.first }.toSet()
         val relevantQuads = getIds(relevantQuadIds)
 
         val ret = BasicMutableQuadSet()
