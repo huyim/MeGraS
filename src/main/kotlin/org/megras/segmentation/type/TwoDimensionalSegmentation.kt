@@ -45,6 +45,16 @@ abstract class TwoDimensionalSegmentation : Segmentation, Translatable {
             this.shape = transform.createTransformedShape(shape)
         }
     }
+
+    fun getXBounds(): Interval<Double> {
+        val bounds = this.shape.bounds
+        return Interval(bounds.minX, bounds.maxX)
+    }
+
+    fun getYBounds(): Interval<Double> {
+        val bounds = this.shape.bounds
+        return Interval(bounds.minY, bounds.maxY)
+    }
 }
 
 class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double) : TwoDimensionalSegmentation() {

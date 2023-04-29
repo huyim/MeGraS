@@ -106,7 +106,6 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             }
         }
 
-        var hash: String? = null
         val segment: ByteArray = when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
             MediaType.TEXT -> {
                 val text = storedObject.inputStream()
@@ -118,21 +117,12 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
                 val segment: BufferedImage?
 
-                when(segmentation.segmentationType) {
+                segment = when(segmentation.segmentationType) {
                     SegmentationType.CHANNEL -> {
-                        segment = ImageSegmenter.segmentChannel(img, segmentation as Channel)
+                        ImageSegmenter.segmentChannel(img, segmentation as Channel)
                     }
-
                     else -> {
-                        val mask = ImageSegmenter.toBinary(img, segmentation) ?: throw RestErrorStatus.invalidSegmentation
-                        hash = HashUtil.hashToBase64(mask, HashUtil.HashType.SHA3_256)
-
-                        if (findInQuad(hash, ctx, nextSegmentPath)) {
-                            logger.info("found cached equivalent")
-                            return
-                        }
-
-                        segment = ImageSegmenter.segmentAndCut(img, mask)
+                        ImageSegmenter.segment(img, segmentation) ?: throw RestErrorStatus.invalidSegmentation
                     }
                 }
 
@@ -188,10 +178,6 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         quads.add(Quad(cacheObject, MeGraS.CANONICAL_ID.uri, StringValue(descriptor.id.id)))
         quads.add(Quad(cacheObject, MeGraS.SEGMENT_OF.uri, ObjectId(objectId)))
         quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cacheObject))
-
-        if (!hash.isNullOrEmpty()) {
-            quads.add(Quad(cacheObject, SchemaOrg.SHA256.uri, StringValue(hash)))
-        }
 
         if (nextSegmentPath != null) {
             ctx.redirect("/$currentPath/$nextSegmentPath")

@@ -1,74 +1,56 @@
 package org.megras.segmentation.media
 
-import org.megras.segmentation.*
-import org.megras.segmentation.type.*
+import org.megras.segmentation.type.Channel
+import org.megras.segmentation.type.Hilbert
+import org.megras.segmentation.type.Segmentation
+import org.megras.segmentation.type.TwoDimensionalSegmentation
 import java.awt.Color
-import java.awt.Shape
+import java.awt.geom.AffineTransform
 import java.awt.image.BufferedImage
-import java.util.*
 import kotlin.math.max
 import kotlin.math.min
 
 
 object ImageSegmenter {
 
-    fun toBinary(image: BufferedImage, segmentation: Segmentation): BitSet? = try {
-        when (segmentation.segmentationType) {
-            SegmentationType.RECT,
-            SegmentationType.POLYGON,
-            SegmentationType.PATH,
-            SegmentationType.BEZIER,
-            SegmentationType.BSPLINE,
-            null -> generateMaskFromShape(image, (segmentation as TwoDimensionalSegmentation).shape)
-            SegmentationType.HILBERT -> generateMaskFromHilbert(image, segmentation as Hilbert)
-            SegmentationType.MASK -> (segmentation as Mask).mask
-            else -> null
-        }
-    } catch (e: Exception) {
-        null
+    fun segment(image: BufferedImage, segmentation: Segmentation, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
+        if (segmentation is TwoDimensionalSegmentation) return segmentShape(image, segmentation, imageType)
+        if (segmentation is Hilbert) return segmentHilbert(image, segmentation, imageType)
+        return null
     }
 
-    fun segment(image: BufferedImage, mask: BitSet, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
-        try {
-            if (image.width * image.height > mask.size()) {
-                return null
-            }
+    private fun segmentShape(image: BufferedImage, segmentation: TwoDimensionalSegmentation, imageType: Int): BufferedImage? {
+        return try {
+            val xBounds = segmentation.getXBounds()
+            val yBounds = segmentation.getYBounds()
 
-            for (y in 0 until image.height) {
-                for (x in 0 until image.width) {
-                    if (!mask[y * image.width + x]) {
-                        image.setRGB(x, y, 0)
-                    }
-                }
-            }
+            val transform = AffineTransform()
+            transform.translate(-xBounds.low, -yBounds.low)
+            val movedShape = transform.createTransformedShape(segmentation.shape)
 
-            val out = BufferedImage(image.width, image.height, imageType)
+            val out = BufferedImage((xBounds.high - xBounds.low).toInt(), (yBounds.high - yBounds.low).toInt(), imageType)
             val g = out.createGraphics()
-            g.drawImage(image, 0, 0, null)
+            g.clip(movedShape)
+            g.drawImage(image, -xBounds.low.toInt(), -yBounds.low.toInt(), null)
             g.dispose()
 
-            return out
+            out
         } catch (e: Exception) {
             //TODO log
-            return null
+            null
         }
     }
 
-    fun segmentAndCut(image: BufferedImage, mask: BitSet, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
-        try {
-            if (image.width * image.height > mask.size()) {
-                return null
-            }
+    private fun segmentHilbert(image: BufferedImage, segmentation: Hilbert, imageType: Int): BufferedImage? {
+        return try {
 
             var top = image.height
             var bottom = 0
             var left = image.width
             var right = 0
-
             for (y in 0 until image.height) {
                 for (x in 0 until image.width) {
-
-                    if (mask[y * image.width + x]) {
+                    if (segmentation.isIncluded(x.toDouble() / image.width, y.toDouble() / image.height)) {
                         top = min(top, y)
                         bottom = max(bottom, y)
                         left = min(left, x)
@@ -84,44 +66,11 @@ object ImageSegmenter {
             g.drawImage(image, -left, -top, null)
             g.dispose()
 
-            return out
+            out
         } catch (e: Exception) {
             //TODO log
-            return null
+            null
         }
-    }
-
-    private fun generateMaskFromShape(inputImage: BufferedImage, clippingShape: Shape) : BitSet {
-        val segmentedImage = BufferedImage(inputImage.width, inputImage.height, BufferedImage.TYPE_INT_ARGB)
-        val g = segmentedImage.createGraphics() //TODO replace clipping with mask alpha blending to get smooth edges
-        g.clip = clippingShape
-        g.drawImage(inputImage, 0, 0, null)
-        g.dispose()
-
-        val alpha = segmentedImage.alphaRaster
-        val mask = BitSet(segmentedImage.width * segmentedImage.height)
-
-        for (y in 0 until segmentedImage.height) {
-            for (x in 0 until segmentedImage.width) {
-                if (alpha.getSample(x, y, 0) > 0) {
-                    mask.set(y * segmentedImage.width + x)
-                }
-            }
-        }
-        return mask
-    }
-
-    fun generateMaskFromHilbert(image: BufferedImage, hilbert: Hilbert): BitSet {
-        val mask = BitSet(image.width * image.height)
-
-        for (y in 0 until image.height) {
-            for (x in 0 until image.width) {
-                if (hilbert.isIncluded(x.toDouble() / image.width, y.toDouble() / image.height)) {
-                    mask.set(y * image.width + x)
-                }
-            }
-        }
-        return mask
     }
 
     fun segmentChannel(image: BufferedImage, channel: Channel): BufferedImage {

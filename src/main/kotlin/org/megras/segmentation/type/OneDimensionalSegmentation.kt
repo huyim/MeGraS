@@ -32,6 +32,10 @@ abstract class OneDimensionalSegmentation : Segmentation {
             rhs.intervals.any { j -> i.low <= j.high && j.low <= i.high }
         }
     }
+
+    fun getBounds(): Interval<Double> {
+        return Interval(intervals.first().low.toDouble(), intervals.last().high.toDouble())
+    }
 }
 
 private operator fun Number.compareTo(low: Number): Int {

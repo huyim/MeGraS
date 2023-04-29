@@ -9,6 +9,7 @@ import org.megras.segmentation.*
 import org.megras.segmentation.type.*
 import java.nio.channels.SeekableByteChannel
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 
 object AudioVideoSegmenter {
@@ -56,41 +57,22 @@ object AudioVideoSegmenter {
             throw RestErrorStatus.noVideo
         }
 
-        val videoProbe = probeStream(stream).first { s -> s.codecType == StreamType.VIDEO }
+        val probe = probeStream(stream)
+        val videoProbe = probe.first { s -> s.codecType == StreamType.VIDEO }
         val frameRate = videoProbe.rFrameRate.toInt()
 
-        val shift = when (segmentation) {
-            is Shiftable -> segmentation.getShiftAmount()
-            else -> 0.0
-        }
-
-        var totalFrames = 0
-        if (segmentation is Hilbert) {
-            FFmpeg.atPath().addInput(ChannelInput.fromChannel(stream))
-                .addOutput(
-                    FrameOutput.withConsumerAlpha(
-                        object : FrameConsumer {
-                            override fun consumeStreams(streams: List<Stream?>?) {}
-                            override fun consume(frame: Frame?) {
-                                if (frame != null) {
-                                    totalFrames++
-                                }
-                            }
-                        }
-                    )
-                        .disableStream(StreamType.AUDIO)
-                        .disableStream(StreamType.SUBTITLE)
-                        .disableStream(StreamType.DATA)
-                )
-                .execute()
-        }
+        val totalDuration = AtomicLong()
+        FFmpeg.atPath()
+            .addInput(ChannelInput.fromChannel(stream))
+            .addOutput(NullOutput())
+            .setProgressListener { progress -> totalDuration.set(progress.timeMillis) }
+            .execute()
 
         return VideoShapeSegmenter(
             stream,
             segmentation,
             frameRate,
-            shift,
-            totalFrames,
+            totalDuration.get(),
             videoProbe.width,
             videoProbe.height
         ).execute()

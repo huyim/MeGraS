@@ -13,7 +13,12 @@ import java.io.File
 import java.util.*
 import kotlin.math.abs
 
-interface ThreeDimensionalSegmentation : Segmentation
+interface ThreeDimensionalSegmentation : Segmentation {
+    fun getXBounds(): Interval<Double>
+    fun getYBounds(): Interval<Double>
+    fun getZBounds(): Interval<Double>
+}
+
 class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) :
     ThreeDimensionalSegmentation {
     override val segmentationType = SegmentationType.PLANE
@@ -31,14 +36,34 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
         TODO("Not yet implemented")
     }
 
+    override fun getXBounds(): Interval<Double> {
+        TODO("Not yet implemented")
+    }
+
+    override fun getYBounds(): Interval<Double> {
+        TODO("Not yet implemented")
+    }
+
+    override fun getZBounds(): Interval<Double> {
+        TODO("Not yet implemented")
+    }
+
     override fun toString(): String = "segment/plane/$a,$b,$c,$d" + if (above) "1" else "0"
 }
 
 data class RotoscopePair(val time: Double, val space: TwoDimensionalSegmentation)
 
-class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation, Translatable, Shiftable {
+class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation, Translatable {
     override val segmentationType = SegmentationType.ROTOSCOPE
     override val segmentationClass = SegmentationClass.SPACETIME
+
+    // Bounds
+    private var minX = Double.MAX_VALUE
+    private var maxX = Double.MIN_VALUE
+    private var minY = Double.MAX_VALUE
+    private var maxY = Double.MIN_VALUE
+    private val minT = rotoscopeList.first().time
+    private val maxT = rotoscopeList.last().time
 
     init {
         require(rotoscopeList.size >= 2) {
@@ -49,6 +74,14 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         val sortedTimePoints = timePoints.sorted()
         require(timePoints == sortedTimePoints) {
             throw IllegalArgumentException("Need input sorted by increasing time points")
+        }
+
+        rotoscopeList.forEach { i ->
+            val bounds = i.space.shape.bounds
+            if (bounds.minX < minX) minX = bounds.minX
+            if (bounds.maxX > maxX) maxX = bounds.maxX
+            if (bounds.minY < minY) minY = bounds.minY
+            if (bounds.maxY > maxY) maxY = bounds.maxY
         }
     }
 
@@ -126,7 +159,11 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         }
     }
 
-    override fun getShiftAmount(): Double = this.rotoscopeList[0].time
+    override fun getXBounds(): Interval<Double> = Interval(minX, maxX)
+
+    override fun getYBounds(): Interval<Double> = Interval(minY, maxY)
+
+    override fun getZBounds(): Interval<Double> = Interval(minT, maxT)
 
     override fun toString(): String = "segment/rotoscope/" + rotoscopeList.joinToString(";") {
         val shapeString = it.space.toString().removePrefix("segment/").replace("/", ",")
@@ -164,10 +201,30 @@ data class Vertex(val x: Float, val y: Float) {
     }
 }
 
-class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation, Shiftable {
+class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
-    private val obj: Obj = ObjReader.read(File("$fileName.obj").inputStream())
+    val obj: Obj = ObjReader.read(File("$fileName.obj").inputStream())
+
+    // Bounds
+    private var minX = Float.MAX_VALUE
+    private var maxX = Float.MIN_VALUE
+    private var minY = Float.MAX_VALUE
+    private var maxY = Float.MIN_VALUE
+    private var minZ = Float.MAX_VALUE
+    private var maxZ = Float.MIN_VALUE
+
+    init {
+        for (v in 0 until obj.numVertices) {
+            val vertex = obj.getVertex(v)
+            if (vertex.x < minX) minX = vertex.x
+            if (vertex.x > maxX) maxX = vertex.x
+            if (vertex.y < minY) minY = vertex.y
+            if (vertex.y > maxY) maxY = vertex.y
+            if (vertex.z < minZ) minZ = vertex.z
+            if (vertex.z > maxZ) maxZ = vertex.z
+        }
+    }
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         TODO("Not yet implemented")
@@ -180,6 +237,12 @@ class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation, Shi
     override fun intersects(rhs: Segmentation): Boolean {
         TODO("Not yet implemented")
     }
+
+    override fun getXBounds(): Interval<Double> = Interval(minX.toDouble(), maxX.toDouble())
+
+    override fun getYBounds(): Interval<Double> = Interval(minY.toDouble(), maxY.toDouble())
+
+    override fun getZBounds(): Interval<Double> = Interval(minZ.toDouble(), maxZ.toDouble())
 
     fun slice(z: Float): TwoDimensionalSegmentation? {
         val lines: MutableList<Pair<Vertex, Vertex>> = LinkedList()
@@ -262,16 +325,6 @@ class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation, Shi
         val x = v1.x + (v2.x - v1.x) * t
         val y = v1.y + (v2.y - v1.y) * t
         return Vertex(x, y)
-    }
-
-    override fun getShiftAmount(): Double {
-        // Find minimum z-coordinate
-        var minZ = Float.MAX_VALUE
-        for (v in 0 until obj.numVertices) {
-            val vertex = obj.getVertex(v)
-            if (vertex.z < minZ) minZ = vertex.z
-        }
-        return minZ.toDouble()
     }
 
     override fun toString(): String = "segment/mesh/$fileName"
