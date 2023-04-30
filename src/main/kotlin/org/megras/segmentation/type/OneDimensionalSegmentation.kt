@@ -1,8 +1,10 @@
 package org.megras.segmentation.type
 
 import org.davidmoten.hilbert.HilbertCurve
+import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
+import java.awt.image.BufferedImage
 import kotlin.math.pow
 import kotlin.math.roundToLong
 
@@ -10,6 +12,7 @@ data class Interval<T : Number>(val low: T, val high: T)
 
 abstract class OneDimensionalSegmentation : Segmentation {
     abstract val intervals: List<Interval<*>>
+    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         return this.contains(rhs) && rhs.contains(this)
@@ -32,10 +35,6 @@ abstract class OneDimensionalSegmentation : Segmentation {
             rhs.intervals.any { j -> i.low <= j.high && j.low <= i.high }
         }
     }
-
-    fun getBounds(): Interval<Double> {
-        return Interval(intervals.first().low.toDouble(), intervals.last().high.toDouble())
-    }
 }
 
 private operator fun Number.compareTo(low: Number): Int {
@@ -47,7 +46,12 @@ private operator fun Number.compareTo(low: Number): Int {
 
 class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<Interval<Long>>) : OneDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.HILBERT
-    override val segmentationClass: SegmentationClass
+    override val segmentationClass: SegmentationClass = when (dimensions) {
+        2 -> SegmentationClass.SPACE
+        3 -> SegmentationClass.SPACETIME
+        else -> throw IllegalArgumentException("Dimension not supported.")
+    }
+
     private val hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
     private val dimensionSize = (2.0).pow(order) - 1
 
@@ -57,12 +61,6 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
         }
 
     init {
-        segmentationClass = when (dimensions) {
-            2 -> SegmentationClass.SPACE
-            3 -> SegmentationClass.SPACETIME
-            else -> throw IllegalArgumentException("Dimension not supported.")
-        }
-
         require(intervals.all { it.low <= it.high }) {
             throw IllegalArgumentException("Ranges are not valid.")
         }

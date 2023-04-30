@@ -1,5 +1,6 @@
 package org.megras.segmentation.type
 
+import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 
@@ -10,6 +11,7 @@ interface ReductionalSegmentation : Segmentation {
 
 class Channel(val selection: List<String>) : ReductionalSegmentation {
     override val segmentationType: SegmentationType = SegmentationType.CHANNEL
+    override var bounds: SegmentationBounds = SegmentationBounds()
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         if (rhs !is Channel) return false
@@ -32,6 +34,7 @@ class Channel(val selection: List<String>) : ReductionalSegmentation {
 
 class Frequency(val low: Int, val high: Int) : ReductionalSegmentation {
     override val segmentationType: SegmentationType = SegmentationType.FREQUENCY
+    override var bounds: SegmentationBounds = SegmentationBounds()
 
     init {
         require(low <= high) {

@@ -8,6 +8,7 @@ class RestErrorStatus(val statusCode: Int, override val message: String): Except
         val emptySegment = RestErrorStatus(404, "Empty segmentation.")
         val noAudio = RestErrorStatus(404, "No audio found in file.")
         val noVideo = RestErrorStatus(404, "No video found in file.")
+        val unknownMediaType = RestErrorStatus(404, "Unknown media type.")
     }
 
 }

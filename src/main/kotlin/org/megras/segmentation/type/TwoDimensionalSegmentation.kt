@@ -2,6 +2,7 @@ package org.megras.segmentation.type
 
 import org.apache.batik.ext.awt.geom.ExtendedPathIterator.*
 import org.apache.batik.parser.AWTPathProducer
+import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 import org.megras.util.extensions.equalsEpsilon
@@ -23,7 +24,7 @@ abstract class TwoDimensionalSegmentation : Segmentation, Translatable {
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         if (rhs !is TwoDimensionalSegmentation) return false
-        return this.area == rhs.area
+        return this.area.equals(rhs.area)
     }
 
     override fun contains(rhs: Segmentation): Boolean {
@@ -45,16 +46,6 @@ abstract class TwoDimensionalSegmentation : Segmentation, Translatable {
             this.shape = transform.createTransformedShape(shape)
         }
     }
-
-    fun getXBounds(): Interval<Double> {
-        val bounds = this.shape.bounds
-        return Interval(bounds.minX, bounds.maxX)
-    }
-
-    fun getYBounds(): Interval<Double> {
-        val bounds = this.shape.bounds
-        return Interval(bounds.minY, bounds.maxY)
-    }
 }
 
 class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double) : TwoDimensionalSegmentation() {
@@ -64,6 +55,7 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
     val height: Double = ymax - ymin
     override var shape: Shape = Rectangle2D.Double(xmin, ymin, width, height)
     override var area: Area = Area(shape)
+    override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -99,6 +91,7 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         points.size
     )
     override var area: Area = Area(shape)
+    override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     init {
         require(points.size > 2) {
@@ -134,6 +127,7 @@ class SVGPath(path: String) : TwoDimensionalSegmentation() {
 
     override var shape: Shape = AWTPathProducer.createShape(StringReader(path), 0)
     override var area: Area = Area(shape)
+    override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     override fun toString(): String {
         val output = StringBuilder()
@@ -160,6 +154,7 @@ class BezierSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegme
     override val segmentationType: SegmentationType = SegmentationType.BEZIER
     override lateinit var shape: Shape
     override lateinit var area: Area
+    override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     init {
         val flattenedControlPoints = points.flatMap { listOf(it.first, it.second) }
@@ -186,6 +181,7 @@ class BSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
     override val segmentationType: SegmentationType = SegmentationType.BSPLINE
     override lateinit var shape: Shape
     override lateinit var area: Area
+    override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     init {
         val degree: Long = 3

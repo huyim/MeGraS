@@ -5,6 +5,7 @@ import com.github.kokorin.jaffree.ffmpeg.*
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 import org.megras.api.rest.RestErrorStatus
 import org.megras.segmentation.type.*
+import org.slf4j.LoggerFactory
 import java.nio.channels.SeekableByteChannel
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -15,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * https://github.com/kokorin/Jaffree/blob/master/src/test/java/examples/MosaicExample.java
  */
 class VideoShapeSegmenter(
-    val videoStream: SeekableByteChannel,
+    private val videoStream: SeekableByteChannel,
     val segmentation: Segmentation,
     val frameRate: Int,
     val totalDuration: Long,
@@ -42,22 +43,14 @@ class VideoShapeSegmenter(
         ffmpegThread.isDaemon = true
         ffmpegThread.start()
 
-        val xBounds = when (segmentation) {
-            is TwoDimensionalSegmentation -> segmentation.getXBounds()
-            is ThreeDimensionalSegmentation -> segmentation.getXBounds()
-            else -> throw RestErrorStatus.invalidSegmentation
-        }
-        val yBounds = when (segmentation) {
-            is TwoDimensionalSegmentation -> segmentation.getYBounds()
-            is ThreeDimensionalSegmentation -> segmentation.getYBounds()
-            else -> throw RestErrorStatus.invalidSegmentation
-        }
-        val tBounds = when (segmentation) {
-            is ThreeDimensionalSegmentation -> segmentation.getZBounds()
+        val xBounds = segmentation.bounds.getXBounds()
+        val yBounds = segmentation.bounds.getYBounds()
+        val tBounds = when (segmentation.bounds.dimensions) {
+            3 -> segmentation.bounds.getZBounds()
             else -> null
         }
 
-        val frameProducer = createFrameProducer(frameIterator, tBounds?.low ?: 0)
+        val frameProducer = createFrameProducer(frameIterator, tBounds?.get(0) ?: 0)
 
         val ffmpeg = FFmpeg.atPath()
             .addInput(
@@ -68,15 +61,15 @@ class VideoShapeSegmenter(
         if (tBounds != null) {
             ffmpeg.addInput(
                 ChannelInput.fromChannel(videoStream)
-                    .setPosition(tBounds.low, TimeUnit.SECONDS)
-                    .setDuration(tBounds.high - tBounds.low, TimeUnit.SECONDS)
+                    .setPosition(tBounds[0], TimeUnit.SECONDS)
+                    .setDuration(tBounds[1] - tBounds[0], TimeUnit.SECONDS)
             )
         } else {
             ffmpeg.addInput(ChannelInput.fromChannel(videoStream))
         }
         // Optionally crop frames
         ffmpeg
-            .setFilter(StreamType.VIDEO, "crop=w=${xBounds.high - xBounds.low}:h=${yBounds.high - yBounds.low}:x=${xBounds.low}:y=${yBounds.low}")
+            .setFilter(StreamType.VIDEO, "crop=w=${xBounds[1] - xBounds[0]}:h=${yBounds[1] - yBounds[0]}:x=${xBounds[0]}:y=${yBounds[0]}")
             .setOverwriteOutput(true)
             .addOutput(
                 ChannelOutput.toChannel("", out)
@@ -153,12 +146,12 @@ class VideoShapeSegmenter(
                 }
                 while (frameIterator.hasNext) {
                     val frame: Frame = frameIterator.next() ?: break
-                    val stream = frameIterator.getStream(frame.getStreamId()) ?: break
-                    when (stream.getType()) {
+                    val stream = frameIterator.getStream(frame.streamId) ?: break
+                    when (stream.type) {
                         Stream.Type.VIDEO -> nextVideoFrame = frame
                         else -> {}
                     }
-                    val frameTs: Long = 1000L * frame.getPts() / stream.getTimebase()
+                    val frameTs: Long = 1000L * frame.pts / stream.timebase
                     if (frameTs >= videoTs) {
                         break
                     }
@@ -168,6 +161,9 @@ class VideoShapeSegmenter(
     }
 
     class FrameIterator : MutableIterator<Frame?> {
+
+        private val logger = LoggerFactory.getLogger(this.javaClass)
+
         @Volatile
         var hasNext = true
 
@@ -187,7 +183,7 @@ class VideoShapeSegmenter(
                     try {
                         Thread.sleep(10)
                     } catch (e: InterruptedException) {
-                        //TODO
+                        logger.warn("Exception while supplying frame", e)
                     }
                 }
                 hasNext = frame != null
@@ -213,7 +209,7 @@ class VideoShapeSegmenter(
 
         fun getStream(id: Int): Stream? {
             for (stream in tracks!!) {
-                if (stream.getId() == id) {
+                if (stream.id == id) {
                     return stream
                 }
             }
@@ -225,7 +221,7 @@ class VideoShapeSegmenter(
                 try {
                     Thread.sleep(10)
                 } catch (e: InterruptedException) {
-                    //TODO
+                    logger.warn("Exception while waiting for frame", e)
                 }
             }
         }

@@ -1,13 +1,16 @@
 package org.megras.segmentation.type
 
+import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
+import java.awt.image.BufferedImage
 import java.util.*
 
 
 sealed interface Segmentation {
     val segmentationType: SegmentationType?
     val segmentationClass: SegmentationClass
+    var bounds: SegmentationBounds
 
     fun equivalentTo(rhs: Segmentation): Boolean
     fun contains(rhs: Segmentation): Boolean
@@ -22,6 +25,8 @@ interface Translatable {
 class Mask(val mask: BitSet) : Segmentation {
     override val segmentationType: SegmentationType = SegmentationType.MASK
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
+    override lateinit var bounds: SegmentationBounds
+
     override fun equivalentTo(rhs: Segmentation): Boolean {
         if (rhs !is Mask) return false
         return this.mask == rhs.mask

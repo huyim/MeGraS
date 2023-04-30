@@ -4,6 +4,7 @@ import de.javagl.obj.FloatTuple
 import de.javagl.obj.Obj
 import de.javagl.obj.ObjReader
 import de.sciss.shapeint.ShapeInterpolator
+import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 import java.awt.Shape
@@ -13,16 +14,15 @@ import java.io.File
 import java.util.*
 import kotlin.math.abs
 
-interface ThreeDimensionalSegmentation : Segmentation {
-    fun getXBounds(): Interval<Double>
-    fun getYBounds(): Interval<Double>
-    fun getZBounds(): Interval<Double>
-}
+interface ThreeDimensionalSegmentation : Segmentation
 
 class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) :
     ThreeDimensionalSegmentation {
     override val segmentationType = SegmentationType.PLANE
     override var segmentationClass = SegmentationClass.SPACE
+    override var bounds: SegmentationBounds
+        get() = TODO("Not yet implemented")
+        set(value) {}
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         return rhs is Plane && this == rhs
@@ -36,18 +36,6 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
         TODO("Not yet implemented")
     }
 
-    override fun getXBounds(): Interval<Double> {
-        TODO("Not yet implemented")
-    }
-
-    override fun getYBounds(): Interval<Double> {
-        TODO("Not yet implemented")
-    }
-
-    override fun getZBounds(): Interval<Double> {
-        TODO("Not yet implemented")
-    }
-
     override fun toString(): String = "segment/plane/$a,$b,$c,$d" + if (above) "1" else "0"
 }
 
@@ -56,14 +44,7 @@ data class RotoscopePair(val time: Double, val space: TwoDimensionalSegmentation
 class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation, Translatable {
     override val segmentationType = SegmentationType.ROTOSCOPE
     override val segmentationClass = SegmentationClass.SPACETIME
-
-    // Bounds
-    private var minX = Double.MAX_VALUE
-    private var maxX = Double.MIN_VALUE
-    private var minY = Double.MAX_VALUE
-    private var maxY = Double.MIN_VALUE
-    private val minT = rotoscopeList.first().time
-    private val maxT = rotoscopeList.last().time
+    override lateinit var bounds: SegmentationBounds
 
     init {
         require(rotoscopeList.size >= 2) {
@@ -76,6 +57,10 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
             throw IllegalArgumentException("Need input sorted by increasing time points")
         }
 
+        var minX = Double.MAX_VALUE
+        var maxX = Double.MIN_VALUE
+        var minY = Double.MAX_VALUE
+        var maxY = Double.MIN_VALUE
         rotoscopeList.forEach { i ->
             val bounds = i.space.shape.bounds
             if (bounds.minX < minX) minX = bounds.minX
@@ -83,6 +68,7 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
             if (bounds.minY < minY) minY = bounds.minY
             if (bounds.maxY > maxY) maxY = bounds.maxY
         }
+        bounds = SegmentationBounds(minX, maxX, minY, maxY, rotoscopeList.first().time, rotoscopeList.last().time)
     }
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
@@ -159,12 +145,6 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         }
     }
 
-    override fun getXBounds(): Interval<Double> = Interval(minX, maxX)
-
-    override fun getYBounds(): Interval<Double> = Interval(minY, maxY)
-
-    override fun getZBounds(): Interval<Double> = Interval(minT, maxT)
-
     override fun toString(): String = "segment/rotoscope/" + rotoscopeList.joinToString(";") {
         val shapeString = it.space.toString().removePrefix("segment/").replace("/", ",")
         "${it.time},${shapeString})"
@@ -188,6 +168,7 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         return object: TwoDimensionalSegmentation() {
             override var shape: Shape = newShape
             override var area: Area = Area(shape)
+            override var bounds: SegmentationBounds = SegmentationBounds(shape)
             override val segmentationType = null
             override fun toString(): String = ""
         }
@@ -204,17 +185,16 @@ data class Vertex(val x: Float, val y: Float) {
 class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
+    override lateinit var bounds: SegmentationBounds
     val obj: Obj = ObjReader.read(File("$fileName.obj").inputStream())
 
-    // Bounds
-    private var minX = Float.MAX_VALUE
-    private var maxX = Float.MIN_VALUE
-    private var minY = Float.MAX_VALUE
-    private var maxY = Float.MIN_VALUE
-    private var minZ = Float.MAX_VALUE
-    private var maxZ = Float.MIN_VALUE
-
     init {
+        var minX = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = Float.MIN_VALUE
+        var minZ = Float.MAX_VALUE
+        var maxZ = Float.MIN_VALUE
         for (v in 0 until obj.numVertices) {
             val vertex = obj.getVertex(v)
             if (vertex.x < minX) minX = vertex.x
@@ -224,6 +204,11 @@ class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
             if (vertex.z < minZ) minZ = vertex.z
             if (vertex.z > maxZ) maxZ = vertex.z
         }
+        bounds = SegmentationBounds(
+            minX.toDouble(), maxX.toDouble(),
+            minY.toDouble(), maxY.toDouble(),
+            minZ.toDouble(), maxZ.toDouble()
+        )
     }
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
@@ -237,12 +222,6 @@ class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
     override fun intersects(rhs: Segmentation): Boolean {
         TODO("Not yet implemented")
     }
-
-    override fun getXBounds(): Interval<Double> = Interval(minX.toDouble(), maxX.toDouble())
-
-    override fun getYBounds(): Interval<Double> = Interval(minY.toDouble(), maxY.toDouble())
-
-    override fun getZBounds(): Interval<Double> = Interval(minZ.toDouble(), maxZ.toDouble())
 
     fun slice(z: Float): TwoDimensionalSegmentation? {
         val lines: MutableList<Pair<Vertex, Vertex>> = LinkedList()
@@ -316,6 +295,7 @@ class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
         return object: TwoDimensionalSegmentation() {
             override var shape: Shape = path
             override var area: Area = Area(shape)
+            override var bounds: SegmentationBounds = SegmentationBounds(shape)
             override val segmentationType = null
             override fun toString(): String = ""
         }

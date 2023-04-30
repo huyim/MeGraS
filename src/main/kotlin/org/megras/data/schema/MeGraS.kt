@@ -10,7 +10,10 @@ enum class MeGraS(suffix: String) {
     CANONICAL_ID("canonicalId"), //raw id of canonical representation
     CANONICAL_MIME_TYPE("canonicalMimeType"),
     FILE_NAME("fileName"),
-    SEGMENT_OF("segmentOf")
+    SEGMENT_OF("segmentOf"),
+    SEGMENT_TYPE("segmentType"),
+    SEGMENT_DEFINITION("segmentDefinition"),
+    SEGMENT_BOUNDS("bounds")
     ;
 
     companion object {

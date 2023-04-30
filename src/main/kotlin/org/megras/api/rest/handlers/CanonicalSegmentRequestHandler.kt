@@ -84,16 +84,9 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             }
         }
 
-        val canonicalId = quads.filter(
-            setOf(ObjectId(ctx.pathParam("objectId"))),
-            setOf(MeGraS.CANONICAL_ID.uri),
-            null
-        ).firstOrNull()?.`object` as? StringValue ?: throw RestErrorStatus.notFound
-        val osId = StoredObjectId.of(canonicalId.value) ?: throw RestErrorStatus.notFound
-        val storedObject = objectStore.get(osId) ?: throw RestErrorStatus.notFound
-
-        //check cache
         if (lookInCache) {
+
+            // check for exact path matches
             quads.filter(listOf(LocalQuadValue(currentPath)), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
                 val cached = it.`object` as LocalQuadValue
                 if (nextSegmentPath != null) {
@@ -104,7 +97,44 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 logger.info("found $currentPath in cache: ${cached.uri}")
                 return
             }
+
+            // check for equivalent segmentations
+            quads.filter(
+                null, listOf(MeGraS.SEGMENT_OF.uri), listOf(ObjectId(ctx.pathParam("objectId")))
+            ).forEach { potentialMatch ->
+                // go through all segments of the medium and check their bounds
+                quads.filter(
+                    listOf(potentialMatch.subject), listOf(MeGraS.SEGMENT_BOUNDS.uri), listOf(StringValue(segmentation.bounds.toString()))
+                ).forEach {
+                    // if the bounds match, check the segmentation
+                    val segmentTypeQuad = quads.filter(listOf(potentialMatch.subject), listOf(MeGraS.SEGMENT_TYPE.uri), null).firstOrNull()
+                    val potentialMatchType = segmentTypeQuad?.`object` as StringValue
+                    val segmentDefinitionQuad = quads.filter(listOf(potentialMatch.subject), listOf(MeGraS.SEGMENT_DEFINITION.uri), null).firstOrNull()
+                    val potentialMatchDefinition = segmentDefinitionQuad?.`object` as StringValue
+                    val potentialMatchSegmentation = SegmentationUtil.parseSegmentation(potentialMatchType.value, potentialMatchDefinition.value) ?: return@forEach
+
+                    if (segmentation.equivalentTo(potentialMatchSegmentation)) {
+                        val cached = potentialMatch.subject as LocalQuadValue
+                        quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cached))
+                        if (nextSegmentPath != null) {
+                            ctx.redirect("/${cached.uri}/$nextSegmentPath")
+                        } else {
+                            ctx.redirect("/${cached.uri}")
+                        }
+                        logger.info("found equivalent to $currentPath in cache: ${cached.uri}")
+                        return
+                    }
+                }
+            }
         }
+
+        val canonicalId = quads.filter(
+            setOf(ObjectId(ctx.pathParam("objectId"))),
+            setOf(MeGraS.CANONICAL_ID.uri),
+            null
+        ).firstOrNull()?.`object` as? StringValue ?: throw RestErrorStatus.notFound
+        val osId = StoredObjectId.of(canonicalId.value) ?: throw RestErrorStatus.notFound
+        val storedObject = objectStore.get(osId) ?: throw RestErrorStatus.notFound
 
         val segment: ByteArray = when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
             MediaType.TEXT -> {
@@ -156,8 +186,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 out.toByteArray()
             }
 
-            MediaType.UNKNOWN -> TODO()
-            null -> TODO()
+            MediaType.UNKNOWN, null -> throw RestErrorStatus.unknownMediaType
         }
 
         val inStream = ByteArrayInputStream(segment)
@@ -177,6 +206,9 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
         quads.add(Quad(cacheObject, MeGraS.CANONICAL_ID.uri, StringValue(descriptor.id.id)))
         quads.add(Quad(cacheObject, MeGraS.SEGMENT_OF.uri, ObjectId(objectId)))
+        quads.add(Quad(cacheObject, MeGraS.SEGMENT_TYPE.uri, StringValue(segmentType)))
+        quads.add(Quad(cacheObject, MeGraS.SEGMENT_DEFINITION.uri, StringValue(segmentDefinition)))
+        quads.add(Quad(cacheObject, MeGraS.SEGMENT_BOUNDS.uri, StringValue(segmentation.bounds.toString())))
         quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cacheObject))
 
         if (nextSegmentPath != null) {
