@@ -3,8 +3,6 @@ package org.megras.segmentation.type
 import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
-import java.awt.image.BufferedImage
-import java.util.*
 
 
 sealed interface Segmentation {
@@ -20,32 +18,4 @@ sealed interface Segmentation {
 
 interface Translatable {
     fun translate(by: Segmentation)
-}
-
-class Mask(val mask: BitSet) : Segmentation {
-    override val segmentationType: SegmentationType = SegmentationType.MASK
-    override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
-    override lateinit var bounds: SegmentationBounds
-
-    override fun equivalentTo(rhs: Segmentation): Boolean {
-        if (rhs !is Mask) return false
-        return this.mask == rhs.mask
-    }
-
-    override fun contains(rhs: Segmentation): Boolean {
-        if (rhs !is Mask) return false
-        if (this.mask.size() != rhs.mask.size()) return false
-
-        for (i in 0 until this.mask.size()) {
-            if (rhs.mask[i] && !this.mask[i]) return false
-        }
-        return true
-    }
-
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is Mask) return false
-        return this.mask.intersects(rhs.mask)
-    }
-
-    override fun toString(): String = TODO()
 }

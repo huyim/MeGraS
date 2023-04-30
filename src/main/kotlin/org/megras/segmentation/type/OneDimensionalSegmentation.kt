@@ -4,6 +4,7 @@ import org.davidmoten.hilbert.HilbertCurve
 import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
+import java.awt.Color
 import java.awt.image.BufferedImage
 import kotlin.math.pow
 import kotlin.math.roundToLong
@@ -56,9 +57,6 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
     private val dimensionSize = (2.0).pow(order) - 1
 
     var relativeTimestamp: Double? = null
-        set(value) {
-            field = value
-        }
 
     init {
         require(intervals.all { it.low <= it.high }) {
@@ -70,7 +68,20 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
         }
     }
 
-    fun isIncluded(vararg relativeCoords: Double): Boolean {
+    fun toImageMask(width: Int, height: Int, t: Double? = null): ImageMask {
+        relativeTimestamp = t
+        val mask = BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY)
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                if (isIncluded(x.toDouble() / width, y.toDouble() / height)) {
+                    mask.setRGB(x, y, Color.WHITE.rgb)
+                }
+            }
+        }
+        return ImageMask(mask)
+    }
+
+    private fun isIncluded(vararg relativeCoords: Double): Boolean {
 
         // Translate to hilbert space
         val hilbertCoords = relativeCoords.map { (it * dimensionSize).roundToLong() }.toMutableList()

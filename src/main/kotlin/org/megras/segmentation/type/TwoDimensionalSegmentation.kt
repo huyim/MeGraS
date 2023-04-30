@@ -7,12 +7,18 @@ import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 import org.megras.util.extensions.equalsEpsilon
 import org.tinyspline.BSpline
+import java.awt.Color
+import java.awt.Rectangle
 import java.awt.Shape
 import java.awt.geom.AffineTransform
 import java.awt.geom.Area
 import java.awt.geom.Path2D
 import java.awt.geom.Rectangle2D
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.io.StringReader
+import java.util.*
+import javax.imageio.ImageIO
 import kotlin.math.roundToInt
 
 abstract class TwoDimensionalSegmentation : Segmentation, Translatable {
@@ -214,4 +220,52 @@ class BSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
     }
 
     override fun toString(): String = "segment/bspline/" + points.joinToString(",") { "(${it.first},${it.second})" }
+}
+
+class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() {
+    override val segmentationType: SegmentationType = SegmentationType.MASK
+    override lateinit var shape: Shape
+    override var area: Area = Area()
+    override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
+    override lateinit var bounds: SegmentationBounds
+
+    init {
+        var r: Rectangle
+        var xstart: Int
+        var xend: Int
+
+        // process mask in rows, try to find long lines of white pixels
+        // reference: https://stackoverflow.com/questions/7052422/image-graphic-into-a-shape
+        for (y in 0 until mask.height) {
+            xstart = Int.MAX_VALUE
+            xend = 0
+            for (x in 0 until mask.width) {
+                if (mask.getRGB(x, y) == Color.WHITE.rgb) {
+                    if (xstart == Int.MAX_VALUE) {
+                        xstart = x
+                        xend = x
+                    }
+                    if (x > xend + 1) {
+                        r = Rectangle(xstart, y, xend + 1 - xstart, 1)
+                        area.add(Area(r))
+                        xstart = Int.MAX_VALUE
+                    }
+                    xend = x
+                }
+            }
+            if (xend > xstart) {
+                r = Rectangle(xstart, y, xend + 1 - xstart, 1)
+                area.add(Area(r))
+            }
+        }
+        shape = area
+        bounds = SegmentationBounds(shape)
+    }
+
+    override fun toString(): String {
+        val os = ByteArrayOutputStream()
+        ImageIO.write(mask, "png", os)
+        val encoded = Base64.getEncoder().encodeToString(os.toByteArray())
+        return "segment/mask/$encoded"
+    }
 }

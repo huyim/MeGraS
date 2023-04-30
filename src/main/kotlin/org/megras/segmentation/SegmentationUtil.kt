@@ -1,7 +1,9 @@
 package org.megras.segmentation
 
 import org.megras.segmentation.type.*
+import java.io.ByteArrayInputStream
 import java.util.*
+import javax.imageio.ImageIO
 
 object SegmentationUtil {
 
@@ -72,24 +74,13 @@ object SegmentationUtil {
             }
 
             SegmentationType.MASK -> {
-                var binaryString = ""
-                if (segmentDefinition.matches(Regex("^[01]+$"))) {
-                    binaryString = segmentDefinition
-                } else {
-                    /**
-                    try {
-                    val decoded = Base64.getDecoder().decode(definition)
-                    binaryString = BigInteger(1, decoded).toString(2)
-                    } catch (_: Exception) {}
-                     **/
+                try {
+                    val decoded = Base64.getDecoder().decode(segmentDefinition)
+                    val maskImage = ImageIO.read(ByteArrayInputStream(decoded))
+                    ImageMask(maskImage)
+                } catch (e: Exception) {
+                    null
                 }
-
-                val mask = BitSet(binaryString.length)
-                binaryString.forEachIndexed { i, b ->
-                    if (b == '1') mask.set(i)
-                }
-
-                Mask(mask)
             }
 
             SegmentationType.HILBERT -> {
