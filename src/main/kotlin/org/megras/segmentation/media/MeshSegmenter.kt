@@ -4,13 +4,15 @@ import de.javagl.obj.*
 import org.megras.segmentation.type.Plane
 import org.megras.segmentation.type.Segmentation
 import org.megras.segmentation.SegmentationType
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 
 
 object MeshSegmenter {
 
-    fun segment(obj: Obj, segmentation: Segmentation): Obj? = try {
+    fun segment(inputStream: InputStream, segmentation: Segmentation): ByteArray? = try {
         when(segmentation.segmentationType) {
-            SegmentationType.PLANE -> segmentPlane(obj, segmentation as Plane)
+            SegmentationType.PLANE -> segmentPlane(inputStream, segmentation as Plane)
             else -> null
         }
     } catch (e: Exception) {
@@ -18,12 +20,12 @@ object MeshSegmenter {
         null
     }
 
-    private fun segmentPlane(obj: Obj, plane: Plane): Obj? {
+    private fun segmentPlane(inputStream: InputStream, plane: Plane): ByteArray? {
+        val obj = ObjReader.read(inputStream)
+        val segmentedObj = Objs.create()
 
-        val out = Objs.create()
-
-        (0 until obj.numVertices).forEach { v -> out.addVertex(obj.getVertex(v)) }
-        (0 until obj.numNormals).forEach { v -> out.addNormal(obj.getNormal(v)) }
+        (0 until obj.numVertices).forEach { v -> segmentedObj.addVertex(obj.getVertex(v)) }
+        (0 until obj.numNormals).forEach { v -> segmentedObj.addNormal(obj.getNormal(v)) }
 
         for (f in 0 until obj.numFaces) {
             val face = obj.getFace(f)
@@ -47,20 +49,22 @@ object MeshSegmenter {
                     val x = v1.x + t * (v2.x - v1.x)
                     val y = v1.y + t * (v2.y - v1.y)
                     val z = v1.z + t * (v2.z - v1.z)
-                    out.addVertex(x, y, z)
-                    keepVertices.add(out.numVertices - 1)
+                    segmentedObj.addVertex(x, y, z)
+                    keepVertices.add(segmentedObj.numVertices - 1)
                 }
             }
 
             if (keepVertices.isNotEmpty()) {
                 if (faceVertices == keepVertices) {
-                    out.addFace(face)
+                    segmentedObj.addFace(face)
                 } else {
-                    out.addFace(*keepVertices.toIntArray())
+                    segmentedObj.addFace(*keepVertices.toIntArray())
                 }
             }
         }
 
-        return out
+        val out = ByteArrayOutputStream()
+        ObjWriter.write(segmentedObj, out)
+        return out.toByteArray()
     }
 }

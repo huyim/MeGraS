@@ -16,7 +16,7 @@ object AudioVideoSegmenter {
 
     private const val outputFormat = "webm"
 
-    fun segment(stream: SeekableByteChannel, segmentation: Segmentation): SeekableInMemoryByteChannel? = try {
+    fun segment(stream: SeekableByteChannel, segmentation: Segmentation): ByteArray? = try {
         when(segmentation.segmentationType) {
             SegmentationType.RECT -> segmentRect(stream, segmentation as Rect)
             SegmentationType.POLYGON,
@@ -37,7 +37,7 @@ object AudioVideoSegmenter {
         null
     }
 
-    private fun segmentRect(stream: SeekableByteChannel, rect: Rect): SeekableInMemoryByteChannel {
+    private fun segmentRect(stream: SeekableByteChannel, rect: Rect): ByteArray {
         if (!hasStreamType(stream, StreamType.VIDEO)) {
             throw RestErrorStatus.noVideo
         }
@@ -49,10 +49,10 @@ object AudioVideoSegmenter {
             .setOverwriteOutput(true)
             .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
             .execute()
-        return out
+        return out.array()
     }
 
-    private fun segmentShape(stream: SeekableByteChannel, segmentation: Segmentation): SeekableInMemoryByteChannel {
+    private fun segmentShape(stream: SeekableByteChannel, segmentation: Segmentation): ByteArray {
         if (!hasStreamType(stream, StreamType.VIDEO)) {
             throw RestErrorStatus.noVideo
         }
@@ -83,7 +83,7 @@ object AudioVideoSegmenter {
      * - selection is either "audio" or "video", then discard the other
      * - selection is indices of streams
      */
-    private fun segmentChannel(stream: SeekableByteChannel, channel: Channel): SeekableInMemoryByteChannel {
+    private fun segmentChannel(stream: SeekableByteChannel, channel: Channel): ByteArray {
         val out = SeekableInMemoryByteChannel()
         val ffmpeg = FFmpeg
             .atPath()
@@ -114,10 +114,10 @@ object AudioVideoSegmenter {
 
         ffmpeg.addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat)).execute()
 
-        return out
+        return out.array()
     }
 
-    private fun segmentFrequency(stream: SeekableByteChannel, frequency: Frequency): SeekableInMemoryByteChannel {
+    private fun segmentFrequency(stream: SeekableByteChannel, frequency: Frequency): ByteArray {
         if (!hasStreamType(stream, StreamType.AUDIO)) {
             throw RestErrorStatus.noAudio
         }
@@ -130,10 +130,10 @@ object AudioVideoSegmenter {
             .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
             .execute()
 
-        return out
+        return out.array()
     }
 
-    private fun segmentTime(stream: SeekableByteChannel, time: Time): SeekableInMemoryByteChannel {
+    private fun segmentTime(stream: SeekableByteChannel, time: Time): ByteArray {
         val out = SeekableInMemoryByteChannel()
 
         if (time.intervals.size == 1) {
@@ -166,7 +166,7 @@ object AudioVideoSegmenter {
                 .execute()
         }
 
-        return out
+        return out.array()
     }
 
     private fun probeStream(stream: SeekableByteChannel): List<com.github.kokorin.jaffree.ffprobe.Stream> {

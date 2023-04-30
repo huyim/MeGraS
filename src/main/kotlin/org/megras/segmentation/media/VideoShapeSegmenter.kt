@@ -24,7 +24,7 @@ class VideoShapeSegmenter(
     val height: Int
 ) {
 
-    fun execute(): SeekableInMemoryByteChannel {
+    fun execute(): ByteArray {
         val out = SeekableInMemoryByteChannel()
 
         val frameIterator = FrameIterator()
@@ -80,7 +80,7 @@ class VideoShapeSegmenter(
             .setContextName("output")
             .execute()
 
-        return out
+        return out.array()
     }
 
     private fun createFrameProducer(frameIterator: FrameIterator, shift: Number): FrameProducer {
@@ -123,16 +123,12 @@ class VideoShapeSegmenter(
                     return null
                 }
 
-                var seg = segmentation
-                if (seg is Rotoscope) {
-                    seg = seg.interpolate(nextVideoFrameTimecode.toDouble() / 1000) ?: return null
-                }
-                if (seg is Hilbert) {
-                    seg.relativeTimestamp = nextVideoFrameTimecode.toDouble() / totalDuration
-                }
-                if (seg is MeshBody) {
-                    seg = seg.slice(nextVideoFrameTimecode.toFloat() / 1000) ?: return null
-                }
+                val seg = when (segmentation) {
+                    is Rotoscope -> segmentation.interpolate(nextVideoFrameTimecode.toDouble() / 1000)
+                    is Hilbert -> segmentation.toImageMask(width, height, nextVideoFrameTimecode.toDouble() / totalDuration)
+                    is MeshBody -> segmentation.slice(nextVideoFrameTimecode.toFloat() / 1000)
+                    else -> segmentation
+                } ?: return null
 
                 val segmentedImage = ImageSegmenter.segment(videoFrame.image, seg) ?: throw RestErrorStatus.invalidSegmentation
                 val result: Frame = Frame.createVideoFrame(0, nextVideoFrameTimecode, segmentedImage)

@@ -7,17 +7,30 @@ import org.megras.segmentation.type.TwoDimensionalSegmentation
 import java.awt.Color
 import java.awt.geom.AffineTransform
 import java.awt.image.BufferedImage
-import kotlin.math.max
-import kotlin.math.min
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import javax.imageio.ImageIO
 
 
 object ImageSegmenter {
 
-    fun segment(image: BufferedImage, segmentation: Segmentation, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? {
-        if (segmentation is TwoDimensionalSegmentation) return segmentShape(image, segmentation, imageType)
-        if (segmentation is Hilbert) return segmentHilbert(image, segmentation, imageType)
-        return null
+    fun segment(inputStream: InputStream, segmentation: Segmentation, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): ByteArray? {
+        val image = ImageIO.read(inputStream)
+        val segmentedImage = segment(image, segmentation, imageType)
+
+        val outputStream = ByteArrayOutputStream()
+        ImageIO.write(segmentedImage, "PNG", outputStream)
+
+        return outputStream.toByteArray()
     }
+
+    fun segment(image: BufferedImage, segmentation: Segmentation, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? =
+        when (segmentation) {
+            is TwoDimensionalSegmentation -> segmentShape(image, segmentation, imageType)
+            is Hilbert -> segmentHilbert(image, segmentation, imageType)
+            is Channel -> segmentChannel(image, segmentation)
+            else -> null
+        }
 
     private fun segmentShape(image: BufferedImage, segmentation: TwoDimensionalSegmentation, imageType: Int): BufferedImage? {
         return try {
@@ -42,38 +55,11 @@ object ImageSegmenter {
     }
 
     private fun segmentHilbert(image: BufferedImage, segmentation: Hilbert, imageType: Int): BufferedImage? {
-        return try {
-
-            var top = image.height
-            var bottom = 0
-            var left = image.width
-            var right = 0
-            for (y in 0 until image.height) {
-                for (x in 0 until image.width) {
-                    if (segmentation.isIncluded(x.toDouble() / image.width, y.toDouble() / image.height)) {
-                        top = min(top, y)
-                        bottom = max(bottom, y)
-                        left = min(left, x)
-                        right = max(right, x)
-                    } else {
-                        image.setRGB(x, y, 0)
-                    }
-                }
-            }
-
-            val out = BufferedImage(right - left, bottom - top, imageType)
-            val g = out.createGraphics()
-            g.drawImage(image, -left, -top, null)
-            g.dispose()
-
-            out
-        } catch (e: Exception) {
-            //TODO log
-            null
-        }
+        val mask = segmentation.toImageMask(image.width, image.height)
+        return segmentShape(image, mask, imageType)
     }
 
-    fun segmentChannel(image: BufferedImage, channel: Channel): BufferedImage {
+    private fun segmentChannel(image: BufferedImage, channel: Channel): BufferedImage {
         for (x in 0 until image.width) {
             for (y in 0 until image.height) {
                 val rgb = image.getRGB(x, y)
