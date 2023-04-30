@@ -267,7 +267,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                 val batchInsert = BatchInsert("megras.literal_double").columns("value")
                 doubleValues.forEach {
-                    batchInsert.append(it.value)
+                    require(batchInsert.append(it.value)) { "could not add value to batch, try reducing batch size" }
                 }
 
                 client.insert(batchInsert)
@@ -315,7 +315,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                 val batchInsert = BatchInsert("megras.literal_string").columns("value")
                 stringValues.forEach {
-                    batchInsert.append(it.value)
+                    require(batchInsert.append(it.value)) { "could not add value to batch, try reducing batch size" }
                 }
                 client.insert(batchInsert)
 
@@ -381,7 +381,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                     val batchInsert = BatchInsert("megras.entity_prefix").columns("prefix")
                     prefixValues.forEach { value ->
-                        batchInsert.append(value)
+                        require(batchInsert.append(value)) { "could not add value to batch, try reducing batch size" }
                     }
                     client.insert(batchInsert)
 
@@ -427,7 +427,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                     val batchInsert = BatchInsert("megras.entity").columns("value")
                     suffixValues.forEach { value ->
-                        batchInsert.append(value)
+                        require(batchInsert.append(value)) { "could not add value to batch, try reducing batch size" }
                     }
                     client.insert(batchInsert)
                     val result = client.query(
@@ -469,13 +469,14 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
                 val name = "megras.vector_values_${entityId}"
 
 
-                val result = when(properties.first) {
+                val result = when (properties.first) {
                     VectorValue.Type.Double -> {
                         val v = vectors.map { (it as DoubleVectorValue).vector }
                         client.query(
                             Query(name).select("*").where(Expression("value", "in", v))
                         )
                     }
+
                     VectorValue.Type.Long -> {
                         val v = vectors.map { (it as LongVectorValue).vector }
                         client.query(
@@ -502,23 +503,27 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                     val insert = BatchInsert(name).columns("value")
                     vectors.forEach {
-                        insert.append(
-                            when (properties.first) {
-                                VectorValue.Type.Double -> (it as DoubleVectorValue).vector
-                                VectorValue.Type.Long -> (it as LongVectorValue).vector
-                            }
-                        )
+                        require(
+                            insert.append(
+                                when (properties.first) {
+                                    VectorValue.Type.Double -> (it as DoubleVectorValue).vector
+                                    VectorValue.Type.Long -> (it as LongVectorValue).vector
+                                }
+                            )
+                        ) {"could not add value to batch, try reducing batch size"}
+
                     }
                     client.insert(insert)
 
 
-                    val result = when(properties.first) {
+                    val result = when (properties.first) {
                         VectorValue.Type.Double -> {
                             val v = vectors.map { (it as DoubleVectorValue).vector }
                             client.query(
                                 Query(name).select("*").where(Expression("value", "in", v))
                             )
                         }
+
                         VectorValue.Type.Long -> {
                             val v = vectors.map { (it as LongVectorValue).vector }
                             client.query(
