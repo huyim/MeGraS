@@ -1,5 +1,6 @@
 package org.megras.segmentation
 
+import de.javagl.obj.ObjReader
 import org.megras.segmentation.type.*
 import java.io.ByteArrayInputStream
 import java.util.*
@@ -174,7 +175,13 @@ object SegmentationUtil {
             }
 
             SegmentationType.MESH -> {
-                MeshBody(segmentDefinition)
+                try {
+                    val objDescription = segmentDefinition.replace(",", "\n")
+                    val obj = ObjReader.read(objDescription.byteInputStream())
+                    MeshBody(obj)
+                } catch (e: Exception) {
+                    null
+                }
             }
 
             else -> null

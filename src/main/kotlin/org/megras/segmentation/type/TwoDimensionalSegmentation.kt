@@ -23,32 +23,36 @@ import kotlin.math.roundToInt
 
 abstract class TwoDimensionalSegmentation : Segmentation, Translatable {
     abstract var shape: Shape
-    abstract var area: Area
 
     override val segmentationClass: SegmentationClass
         get() = SegmentationClass.SPACE
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         if (rhs !is TwoDimensionalSegmentation) return false
-        return this.area.equals(rhs.area)
+        if (this.bounds != rhs.bounds) return false
+        return Area(this.shape).equals(Area(rhs.shape))
     }
 
     override fun contains(rhs: Segmentation): Boolean {
         if (rhs !is TwoDimensionalSegmentation) return false
-        rhs.area.subtract(this.area)
-        return rhs.area.isEmpty
+        if (!this.bounds.contains(rhs.bounds)) return false
+        val rhsArea = Area(rhs.shape)
+        rhsArea.subtract(Area(this.shape))
+        return rhsArea.isEmpty
     }
 
     override fun intersects(rhs: Segmentation): Boolean {
         if (rhs !is TwoDimensionalSegmentation) return false
-        this.area.intersect(rhs.area)
-        return this.area.isEmpty
+        if (!this.bounds.intersects(rhs.bounds)) return false
+        val rhsArea = Area(rhs.shape)
+        rhsArea.intersect(Area(this.shape))
+        return rhsArea.isEmpty
     }
 
-    override fun translate(by: Segmentation) {
-        if (by is TwoDimensionalSegmentation) {
+    override fun translate(by: SegmentationBounds) {
+        if (by.dimensions >= 2) {
             val transform = AffineTransform()
-            transform.translate(by.area.bounds.minX, by.area.bounds.minY)
+            transform.translate(by.getMinX(), by.getMinY())
             this.shape = transform.createTransformedShape(shape)
         }
     }
@@ -60,7 +64,6 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
     val width: Double = xmax - xmin
     val height: Double = ymax - ymin
     override var shape: Shape = Rectangle2D.Double(xmin, ymin, width, height)
-    override var area: Area = Area(shape)
     override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     override fun equals(other: Any?): Boolean {
@@ -96,7 +99,6 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         points.map { it.second.roundToInt() }.toIntArray(),
         points.size
     )
-    override var area: Area = Area(shape)
     override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     init {
@@ -132,7 +134,6 @@ class SVGPath(path: String) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.PATH
 
     override var shape: Shape = AWTPathProducer.createShape(StringReader(path), 0)
-    override var area: Area = Area(shape)
     override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     override fun toString(): String {
@@ -159,7 +160,6 @@ class SVGPath(path: String) : TwoDimensionalSegmentation() {
 class BezierSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.BEZIER
     override lateinit var shape: Shape
-    override lateinit var area: Area
     override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     init {
@@ -177,7 +177,6 @@ class BezierSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegme
         }
 
         shape = path
-        area = Area(shape)
     }
 
     override fun toString(): String = "segment/bezier/" + points.joinToString(",") { "(${it.first},${it.second})" }
@@ -186,7 +185,6 @@ class BezierSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegme
 class BSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.BSPLINE
     override lateinit var shape: Shape
-    override lateinit var area: Area
     override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
     init {
@@ -216,7 +214,6 @@ class BSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         }
 
         shape = path
-        area = Area(shape)
     }
 
     override fun toString(): String = "segment/bspline/" + points.joinToString(",") { "(${it.first},${it.second})" }
@@ -225,11 +222,11 @@ class BSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
 class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.MASK
     override lateinit var shape: Shape
-    override var area: Area = Area()
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override lateinit var bounds: SegmentationBounds
 
     init {
+        val area = Area()
         var r: Rectangle
         var xstart: Int
         var xend: Int

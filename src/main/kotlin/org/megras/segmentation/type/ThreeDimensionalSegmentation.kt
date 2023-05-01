@@ -1,47 +1,94 @@
 package org.megras.segmentation.type
 
-import de.javagl.obj.FloatTuple
-import de.javagl.obj.Obj
-import de.javagl.obj.ObjReader
+import de.javagl.obj.*
 import de.sciss.shapeint.ShapeInterpolator
+import org.megras.api.rest.RestErrorStatus
 import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 import java.awt.Shape
-import java.awt.geom.Area
 import java.awt.geom.Path2D
-import java.io.File
+import java.io.ByteArrayOutputStream
+import java.nio.charset.Charset
 import java.util.*
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
-interface ThreeDimensionalSegmentation : Segmentation
-
-class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) :
-    ThreeDimensionalSegmentation {
-    override val segmentationType = SegmentationType.PLANE
-    override var segmentationClass = SegmentationClass.SPACE
-    override var bounds: SegmentationBounds
-        get() = TODO("Not yet implemented")
-        set(value) {}
-
+abstract class ThreeDimensionalSegmentation : Segmentation {
     override fun equivalentTo(rhs: Segmentation): Boolean {
-        return rhs is Plane && this == rhs
+        if (rhs !is ThreeDimensionalSegmentation) return false
+        if (this.bounds != rhs.bounds) return false
+
+        val timeBounds = this.bounds.getZBounds()
+        for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
+            val shape1 = this.slice(t.toDouble())
+            val shape2 = rhs.slice(t.toDouble())
+            if (shape1 != null && shape2 != null && !shape1.equivalentTo(shape2)) return false
+        }
+        return true
     }
 
     override fun contains(rhs: Segmentation): Boolean {
-        TODO("Not yet implemented")
+        if (rhs !is ThreeDimensionalSegmentation) return false
+        if (!this.bounds.contains(rhs.bounds)) return false
+
+        val timeBounds = rhs.bounds.getZBounds()
+        for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
+            val shape1 = this.slice(t.toDouble())
+            val shape2 = rhs.slice(t.toDouble())
+            if (shape1 != null && shape2 != null && !shape1.contains(shape2)) return false
+        }
+        return true
     }
 
     override fun intersects(rhs: Segmentation): Boolean {
-        TODO("Not yet implemented")
+        if (rhs !is ThreeDimensionalSegmentation) return false
+        if (!this.bounds.intersects(rhs.bounds)) return false
+
+        val timeBounds = this.bounds.getZBounds()
+        for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
+            val shape1 = this.slice(t.toDouble())
+            val shape2 = rhs.slice(t.toDouble())
+            if (shape1 != null && shape2 != null && shape1.intersects(shape2)) return true
+        }
+        return false
     }
+
+    abstract fun slice(time: Double): TwoDimensionalSegmentation?
+}
+
+class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) :
+    ThreeDimensionalSegmentation() {
+    override val segmentationType = SegmentationType.PLANE
+    override var segmentationClass = SegmentationClass.SPACE
+    override var bounds: SegmentationBounds = SegmentationBounds()
+
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        return rhs is Plane &&
+                this.a == rhs.a && this.b == rhs.b && this.c == rhs.c && this.d == rhs.d && this.above == rhs.above
+    }
+
+    override fun contains(rhs: Segmentation): Boolean {
+        if (rhs !is Plane) return false
+        return this.a == rhs.a && this.b == rhs.b && this.c == rhs.c && this.above == rhs.above &&
+                ((above && rhs.d <= this.d) || (!above && this.d <= rhs.d))
+    }
+
+    override fun intersects(rhs: Segmentation): Boolean {
+        if (rhs !is Plane) return false
+        return this.a != rhs.a || this.b != rhs.b || this.c != rhs.c || this.above == rhs.above ||
+                (above && rhs.d <= this.d ) || (!above && this.d <= rhs.d)
+    }
+
+    override fun slice(time: Double): TwoDimensionalSegmentation? = null
 
     override fun toString(): String = "segment/plane/$a,$b,$c,$d" + if (above) "1" else "0"
 }
 
-data class RotoscopePair(val time: Double, val space: TwoDimensionalSegmentation)
+data class RotoscopePair(var time: Double, val space: TwoDimensionalSegmentation)
 
-class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation, Translatable {
+class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation(), Translatable {
     override val segmentationType = SegmentationType.ROTOSCOPE
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: SegmentationBounds
@@ -71,86 +118,17 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         bounds = SegmentationBounds(minX, maxX, minY, maxY, rotoscopeList.first().time, rotoscopeList.last().time)
     }
 
-    override fun equivalentTo(rhs: Segmentation): Boolean {
-        if (rhs is Rotoscope) {
-            // First and last times need to match
-            val ft1 = this.rotoscopeList.first().time
-            val ft2 = rhs.rotoscopeList.first().time
-            val lt1 = this.rotoscopeList.last().time
-            val lt2 = rhs.rotoscopeList.last().time
-            if (ft1 != ft2 || lt1 != lt2) {
-                return false
+    override fun translate(by: SegmentationBounds) {
+        if (by.dimensions >= 2) {
+            rotoscopeList.forEach {
+                it.time += by.getMinZ()
+                it.space.translate(by)
             }
-            for (i in ft1.toInt() .. lt1.toInt()) {
-                val shape1 = this.interpolate(i.toDouble())
-                val shape2 = rhs.interpolate(i.toDouble())
-                if ((shape1 != shape2) ||
-                    (shape1 != null && shape2 != null && !shape1.equivalentTo(shape2))) {
-                    return false
-                }
-            }
-            return true
-        }
-        TODO("comparison to space filling curve")
-    }
-
-    override fun contains(rhs: Segmentation): Boolean {
-        if (rhs is Rotoscope) {
-            // Times need to be contained
-            val ft1 = this.rotoscopeList.first().time
-            val ft2 = rhs.rotoscopeList.first().time
-            val lt1 = this.rotoscopeList.last().time
-            val lt2 = rhs.rotoscopeList.last().time
-            if (ft1 > ft2 || lt1 < lt2) {
-                return false
-            }
-            for (i in ft2.toInt() .. lt2.toInt()) {
-                val shape1 = this.interpolate(i.toDouble())
-                val shape2 = rhs.interpolate(i.toDouble())
-                if (shape1 != null && shape2 != null && !shape1.contains(shape2)) {
-                    return false
-                }
-            }
-            return true
-        }
-        TODO("comparison to space filling curve")
-    }
-
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs is Rotoscope) {
-            // Times need to overlap
-            val ft1 = this.rotoscopeList.first().time
-            val ft2 = rhs.rotoscopeList.first().time
-            val lt1 = this.rotoscopeList.last().time
-            val lt2 = rhs.rotoscopeList.last().time
-            if (ft2 > lt1 || ft1 > lt2) {
-                return false
-            }
-            for (i in ft1.toInt() .. lt1.toInt()) {
-                val shape1 = this.interpolate(i.toDouble())
-                val shape2 = rhs.interpolate(i.toDouble())
-                if (shape1 != null && shape2 != null && shape1.intersects(shape2)) {
-                    return true
-                }
-            }
-            return false
-        }
-        TODO("comparison to space filling curve")
-    }
-
-    override fun translate(by: Segmentation) {
-        if (by is Rotoscope) {
-            val shift = by.rotoscopeList[0].time
-            rotoscopeList = rotoscopeList.map { RotoscopePair(it.time + shift, it.space) }
+            bounds.translate(by)
         }
     }
 
-    override fun toString(): String = "segment/rotoscope/" + rotoscopeList.joinToString(";") {
-        val shapeString = it.space.toString().removePrefix("segment/").replace("/", ",")
-        "${it.time},${shapeString})"
-    }
-
-    fun interpolate(time: Double): TwoDimensionalSegmentation? {
+    override fun slice(time: Double): TwoDimensionalSegmentation? {
         if (time < rotoscopeList.first().time || time > rotoscopeList.last().time) return null
 
         var endIndex = rotoscopeList.indexOfFirst { it.time > time }
@@ -167,11 +145,15 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
 
         return object: TwoDimensionalSegmentation() {
             override var shape: Shape = newShape
-            override var area: Area = Area(shape)
             override var bounds: SegmentationBounds = SegmentationBounds(shape)
             override val segmentationType = null
             override fun toString(): String = ""
         }
+    }
+
+    override fun toString(): String = "segment/rotoscope/" + rotoscopeList.joinToString(";") {
+        val shapeString = it.space.toString().removePrefix("segment/").replace("/", ",")
+        "${it.time},${shapeString})"
     }
 }
 
@@ -182,49 +164,87 @@ data class Vertex(val x: Float, val y: Float) {
     }
 }
 
-class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
+class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translatable {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: SegmentationBounds
-    val obj: Obj = ObjReader.read(File("$fileName.obj").inputStream())
 
     init {
-        var minX = Float.MAX_VALUE
-        var maxX = Float.MIN_VALUE
-        var minY = Float.MAX_VALUE
-        var maxY = Float.MIN_VALUE
-        var minZ = Float.MAX_VALUE
-        var maxZ = Float.MIN_VALUE
+        val vertices = mutableListOf<FloatTuple>()
+
+        val b = floatArrayOf(
+            Float.MAX_VALUE, Float.MIN_VALUE,
+            Float.MAX_VALUE, Float.MIN_VALUE,
+            Float.MAX_VALUE, Float.MIN_VALUE
+        )
+
+        // Compute bounds and collect vertices
         for (v in 0 until obj.numVertices) {
             val vertex = obj.getVertex(v)
-            if (vertex.x < minX) minX = vertex.x
-            if (vertex.x > maxX) maxX = vertex.x
-            if (vertex.y < minY) minY = vertex.y
-            if (vertex.y > maxY) maxY = vertex.y
-            if (vertex.z < minZ) minZ = vertex.z
-            if (vertex.z > maxZ) maxZ = vertex.z
+            vertices.add(vertex)
+
+            b[0] = min(vertex.x, b[0])
+            b[1] = max(vertex.x, b[1])
+            b[2] = min(vertex.x, b[2])
+            b[3] = max(vertex.x, b[3])
+            b[4] = min(vertex.x, b[4])
+            b[5] = max(vertex.x, b[5])
         }
+
         bounds = SegmentationBounds(
-            minX.toDouble(), maxX.toDouble(),
-            minY.toDouble(), maxY.toDouble(),
-            minZ.toDouble(), maxZ.toDouble()
+            b[0].toDouble(), b[1].toDouble(),
+            b[2].toDouble(), b[3].toDouble(),
+            b[4].toDouble(), b[5].toDouble()
         )
+
+        // Sort vertices ascending and keep track of their old and new index
+        val sorter = ObjVertexSorter(vertices)
+        val oldToNewIndex = sorter.getMapping()
+
+        // Collect faces with the updated vertex indices and sort them by index sum
+        val faces = mutableListOf<IntArray>()
+        for (f in 0 until obj.numFaces) {
+            val face = obj.getFace(f)
+            val newFaceIndices = mutableListOf<Int>()
+            for (v in 0 until face.numVertices) {
+                val newFaceIndex = oldToNewIndex[face.getVertexIndex(v)] ?: throw RestErrorStatus.invalidSegmentation
+                newFaceIndices.add(newFaceIndex)
+            }
+            faces.add(newFaceIndices.toIntArray())
+        }
+        faces.sortBy { it.sum() }
+
+        // Add the next vertices and faces to a new obj object
+        val sortedObj = Objs.create()
+        sorter.getSortedIndices().forEach { i -> sortedObj.addVertex(vertices[i]) }
+        faces.forEach {face ->
+            val newFace = ObjFaces.create(face, null, null)
+            sortedObj.addFace(newFace)
+        }
+        obj = sortedObj
     }
 
-    override fun equivalentTo(rhs: Segmentation): Boolean {
-        TODO("Not yet implemented")
+    override fun translate(by: SegmentationBounds) {
+        val minX = by.getMinX().toFloat()
+        val minY = by.getMinY().toFloat()
+        val minZ = by.getMinZ().toFloat()
+
+        val newObj = Objs.create()
+        for (i in 0 until obj.numVertices) {
+            val vertex = obj.getVertex(i)
+            newObj.addVertex(vertex.x + minX, vertex.y + minY, vertex.z + minZ)
+        }
+        for (j in 0 until obj.numFaces) {
+            val face = obj.getFace(j)
+            newObj.addFace(face)
+        }
+        obj = newObj
+        bounds.translate(by)
     }
 
-    override fun contains(rhs: Segmentation): Boolean {
-        TODO("Not yet implemented")
-    }
-
-    override fun intersects(rhs: Segmentation): Boolean {
-        TODO("Not yet implemented")
-    }
-
-    fun slice(z: Float): TwoDimensionalSegmentation? {
+    override fun slice(time: Double): TwoDimensionalSegmentation? {
         val lines: MutableList<Pair<Vertex, Vertex>> = LinkedList()
+        val z = time.toFloat()
 
         // iterate all faces and all vertices
         for (f in 0 until obj.numFaces) {
@@ -294,7 +314,6 @@ class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
 
         return object: TwoDimensionalSegmentation() {
             override var shape: Shape = path
-            override var area: Area = Area(shape)
             override var bounds: SegmentationBounds = SegmentationBounds(shape)
             override val segmentationType = null
             override fun toString(): String = ""
@@ -307,5 +326,29 @@ class MeshBody(private val fileName: String) : ThreeDimensionalSegmentation {
         return Vertex(x, y)
     }
 
-    override fun toString(): String = "segment/mesh/$fileName"
+    override fun toString(): String {
+        val outputStream = ByteArrayOutputStream()
+        ObjWriter.write(obj, outputStream)
+        val outputString = outputStream.toString(Charset.defaultCharset())
+        return "segment/mesh/" + outputString.replace("\n", ",")
+    }
+}
+
+class ObjVertexSorter(private val array: List<FloatTuple>) : Comparator<Int> {
+    private val indices = array.indices.toMutableList()
+
+    fun getSortedIndices(): MutableList<Int> {
+        indices.sortWith(this)
+        return indices
+    }
+
+    fun getMapping(): HashMap<Int, Int> {
+        val indexMap = hashMapOf<Int, Int>()
+        indices.forEachIndexed { index, i -> indexMap[i] = index }
+        return indexMap
+    }
+
+    override fun compare(index1: Int, index2: Int): Int {
+        return compareValuesBy(array[index1], array[index2], { it.x }, { it.y }, { it.z })
+    }
 }

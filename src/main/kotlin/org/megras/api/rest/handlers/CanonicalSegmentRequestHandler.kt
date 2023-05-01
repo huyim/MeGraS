@@ -51,7 +51,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
             val nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
             if (nextSegmentation is Translatable) {
-                nextSegmentation.translate(segmentation)
+                nextSegmentation.translate(segmentation.bounds)
             }
 
             // if two segmentations of the same type are not overlapping, no valid result can be computed

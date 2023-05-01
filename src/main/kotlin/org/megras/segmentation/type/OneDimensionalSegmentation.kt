@@ -56,7 +56,7 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
     private val hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
     private val dimensionSize = (2.0).pow(order) - 1
 
-    var relativeTimestamp: Double? = null
+    private var relativeTimestamp: Double? = null
 
     init {
         require(intervals.all { it.low <= it.high }) {
@@ -102,12 +102,12 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
 class Time(override var intervals: List<Interval<Double>>) : OneDimensionalSegmentation(), Translatable {
     override val segmentationType: SegmentationType = SegmentationType.TIME
     override val segmentationClass = SegmentationClass.TIME
-    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
+    override var bounds = SegmentationBounds(intervals.first().low, intervals.last().high)
 
-    override fun translate(by: Segmentation) {
-        if (by is Time) {
-            val shift = by.intervals[0].low
-            intervals = intervals.map { Interval(it.low + shift, it.high + shift) }
+    override fun translate(by: SegmentationBounds) {
+        if (by.dimensions == 1) {
+            intervals = intervals.map { Interval(it.low + by.getMinX(), it.high + by.getMinX()) }
+            bounds.translate(by)
         }
     }
 
@@ -128,10 +128,10 @@ class Character(override var intervals: List<Interval<Int>>) : OneDimensionalSeg
     override val segmentationClass = SegmentationClass.TIME
     override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
-    override fun translate(by: Segmentation) {
-        if (by is Character) {
-            val shift = by.intervals[0].low
-            intervals = intervals.map { Interval(it.low + shift, it.high + shift) }
+    override fun translate(by: SegmentationBounds) {
+        if (by.dimensions == 1) {
+            intervals = intervals.map { Interval(it.low + by.getMinX().toInt(), it.high + by.getMinX().toInt()) }
+            bounds.translate(by)
         }
     }
 
@@ -143,10 +143,10 @@ class Page(override var intervals: List<Interval<Int>>) : OneDimensionalSegmenta
     override val segmentationClass = SegmentationClass.TIME
     override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
-    override fun translate(by: Segmentation) {
-        if (by is Page) {
-            val shift = by.intervals[0].low
-            intervals = intervals.map { Interval(it.low + shift, it.high + shift) }
+    override fun translate(by: SegmentationBounds) {
+        if (by.dimensions == 1) {
+            intervals = intervals.map { Interval(it.low + by.getMinX().toInt(), it.high + by.getMinX().toInt()) }
+            bounds.translate(by)
         }
     }
 
