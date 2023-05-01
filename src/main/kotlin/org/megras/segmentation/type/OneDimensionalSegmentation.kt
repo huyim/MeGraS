@@ -13,7 +13,6 @@ data class Interval<T : Number>(val low: T, val high: T)
 
 abstract class OneDimensionalSegmentation : Segmentation {
     abstract val intervals: List<Interval<*>>
-    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         return this.contains(rhs) && rhs.contains(this)
@@ -52,6 +51,7 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
         3 -> SegmentationClass.SPACETIME
         else -> throw IllegalArgumentException("Dimension not supported.")
     }
+    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
     private val hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
     private val dimensionSize = (2.0).pow(order) - 1
@@ -102,6 +102,7 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
 class Time(override var intervals: List<Interval<Double>>) : OneDimensionalSegmentation(), Translatable {
     override val segmentationType: SegmentationType = SegmentationType.TIME
     override val segmentationClass = SegmentationClass.TIME
+    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
     override fun translate(by: Segmentation) {
         if (by is Time) {
@@ -125,6 +126,7 @@ class Time(override var intervals: List<Interval<Double>>) : OneDimensionalSegme
 class Character(override var intervals: List<Interval<Int>>) : OneDimensionalSegmentation(), Translatable {
     override val segmentationType = SegmentationType.CHARACTER
     override val segmentationClass = SegmentationClass.TIME
+    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
     override fun translate(by: Segmentation) {
         if (by is Character) {
@@ -139,6 +141,7 @@ class Character(override var intervals: List<Interval<Int>>) : OneDimensionalSeg
 class Page(override var intervals: List<Interval<Int>>) : OneDimensionalSegmentation(), Translatable {
     override val segmentationType = SegmentationType.PAGE
     override val segmentationClass = SegmentationClass.TIME
+    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
     override fun translate(by: Segmentation) {
         if (by is Page) {

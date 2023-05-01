@@ -32,7 +32,7 @@ object ImageSegmenter {
             else -> null
         }
 
-    private fun segmentShape(image: BufferedImage, segmentation: TwoDimensionalSegmentation, imageType: Int): BufferedImage? {
+    fun segmentShape(image: BufferedImage, segmentation: TwoDimensionalSegmentation, imageType: Int): BufferedImage? {
         return try {
             val xBounds = segmentation.bounds.getXBounds()
             val yBounds = segmentation.bounds.getYBounds()
