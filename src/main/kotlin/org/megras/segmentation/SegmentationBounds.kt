@@ -16,22 +16,34 @@ class SegmentationBounds {
     }
 
     constructor(shape: Shape) {
-        this.bounds = doubleArrayOf(shape.bounds.minX, shape.bounds.maxX, shape.bounds.minY, shape.bounds.maxY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY)
+        this.bounds = doubleArrayOf(
+            shape.bounds.minX.coerceAtLeast(0.0), shape.bounds.maxX.coerceAtLeast(0.0),
+            shape.bounds.minY.coerceAtLeast(0.0), shape.bounds.maxY.coerceAtLeast(0.0),
+            Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY)
         dimensions = 2
     }
 
     constructor(minZ: Double, maxZ: Double) {
-        this.bounds = doubleArrayOf(Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, minZ, maxZ)
+        this.bounds = doubleArrayOf(
+            Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY,
+            Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY,
+            minZ.coerceAtLeast(0.0), maxZ.coerceAtLeast(0.0))
         dimensions = 1
     }
 
     constructor(minX: Double, maxX: Double, minY: Double, maxY: Double) {
-        this.bounds = doubleArrayOf(minX, maxX, minY, maxY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY)
+        this.bounds = doubleArrayOf(
+            minX.coerceAtLeast(0.0), maxX.coerceAtLeast(0.0),
+            minY.coerceAtLeast(0.0), maxY.coerceAtLeast(0.0),
+            Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY)
         dimensions = 2
     }
 
     constructor(minX: Double, maxX: Double, minY: Double, maxY: Double, minZ: Double, maxZ: Double) {
-        this.bounds = doubleArrayOf(minX, maxX, minY, maxY, minZ, maxZ)
+        this.bounds = doubleArrayOf(
+            minX.coerceAtLeast(0.0), maxX.coerceAtLeast(0.0),
+            minY.coerceAtLeast(0.0), maxY.coerceAtLeast(0.0),
+            minZ.coerceAtLeast(0.0), maxZ.coerceAtLeast(0.0))
         dimensions = 3
     }
 

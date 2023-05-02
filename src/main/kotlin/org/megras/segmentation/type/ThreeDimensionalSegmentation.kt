@@ -173,10 +173,10 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
 
             b[0] = min(vertex.x, b[0])
             b[1] = max(vertex.x, b[1])
-            b[2] = min(vertex.x, b[2])
-            b[3] = max(vertex.x, b[3])
-            b[4] = min(vertex.x, b[4])
-            b[5] = max(vertex.x, b[5])
+            b[2] = min(vertex.y, b[2])
+            b[3] = max(vertex.y, b[3])
+            b[4] = min(vertex.z, b[4])
+            b[5] = max(vertex.z, b[5])
         }
 
         bounds = SegmentationBounds(
