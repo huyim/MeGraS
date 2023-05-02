@@ -26,7 +26,9 @@ sealed interface Segmentation {
      * Attempts to determine if this segmentation intersects another one.
      * In cases where the segmentations could be intersecting, but not enough information is available, `false` is returned.
      */
-    fun intersects(rhs: Segmentation): Boolean
+    fun intersects(rhs: Segmentation): Boolean {
+        return this.bounds.intersects(rhs.bounds)
+    }
 
     override fun toString(): String
 }

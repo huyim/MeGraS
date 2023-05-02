@@ -26,15 +26,6 @@ abstract class OneDimensionalSegmentation : Segmentation {
             this.intervals.any { i -> i.low <= j.low && j.high <= i.high }
         }
     }
-
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is OneDimensionalSegmentation) return false
-
-        // Any two intervals overlap
-        return this.intervals.any { i ->
-            rhs.intervals.any { j -> i.low <= j.high && j.low <= i.high }
-        }
-    }
 }
 
 private operator fun Number.compareTo(low: Number): Int {
@@ -51,7 +42,7 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
         3 -> SegmentationClass.SPACETIME
         else -> throw IllegalArgumentException("Dimension not supported.")
     }
-    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
+    override var bounds = SegmentationBounds(dimensions)
 
     private val hilbertCurve = HilbertCurve.small().bits(order).dimensions(dimensions)
     private val dimensionSize = (2.0).pow(order) - 1

@@ -41,14 +41,6 @@ abstract class TwoDimensionalSegmentation : Segmentation, Translatable {
         return rhsArea.isEmpty
     }
 
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is TwoDimensionalSegmentation) return false
-        if (!this.bounds.intersects(rhs.bounds)) return false
-        val rhsArea = Area(rhs.shape)
-        rhsArea.intersect(Area(this.shape))
-        return rhsArea.isEmpty
-    }
-
     override fun translate(by: SegmentationBounds) {
         if (by.dimensions >= 2) {
             val transform = AffineTransform()
@@ -75,9 +67,7 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
         if (!xmin.equalsEpsilon(other.xmin)) return false
         if (!xmax.equalsEpsilon(other.xmax)) return false
         if (!ymin.equalsEpsilon(other.ymin)) return false
-        if (!ymax.equalsEpsilon(other.ymax)) return false
-
-        return true
+        return ymax.equalsEpsilon(other.ymax)
     }
 
     override fun hashCode(): Int {
@@ -88,7 +78,7 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
         return result
     }
 
-    override fun toString(): String = "segment/rect/" + "$xmin,$xmax,$ymin,$ymax"
+    override fun toString(): String = "segment/rect/$xmin,$xmax,$ymin,$ymax"
 }
 
 class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
@@ -143,8 +133,7 @@ class SVGPath(path: String) : TwoDimensionalSegmentation() {
         val iter = shape.getPathIterator(null)
         val coords = FloatArray(6)
         while (!iter.isDone) {
-            val type = iter.currentSegment(coords)
-            when (type) {
+            when (iter.currentSegment(coords)) {
                 SEG_MOVETO -> output.append("M${coords[0]},${coords[1]}")
                 SEG_LINETO -> output.append("L${coords[0]},${coords[1]}")
                 SEG_QUADTO -> output.append("Q${coords[0]},${coords[1]} ${coords[2]},${coords[3]}")
@@ -157,10 +146,10 @@ class SVGPath(path: String) : TwoDimensionalSegmentation() {
     }
 }
 
-class BezierSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
+class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.BEZIER
     override lateinit var shape: Shape
-    override var bounds: SegmentationBounds = SegmentationBounds(shape)
+    override lateinit var bounds: SegmentationBounds
 
     init {
         val flattenedControlPoints = points.flatMap { listOf(it.first, it.second) }
@@ -177,15 +166,16 @@ class BezierSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegme
         }
 
         shape = path
+        bounds = SegmentationBounds(shape)
     }
 
     override fun toString(): String = "segment/bezier/" + points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
-class BSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
+class BSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.BSPLINE
     override lateinit var shape: Shape
-    override var bounds: SegmentationBounds = SegmentationBounds(shape)
+    override lateinit var bounds: SegmentationBounds
 
     init {
         val degree: Long = 3
@@ -214,6 +204,7 @@ class BSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         }
 
         shape = path
+        bounds = SegmentationBounds(shape)
     }
 
     override fun toString(): String = "segment/bspline/" + points.joinToString(",") { "(${it.first},${it.second})" }
@@ -223,7 +214,6 @@ class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() 
     override val segmentationType: SegmentationType = SegmentationType.MASK
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override lateinit var shape: Shape
-    override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override lateinit var bounds: SegmentationBounds
 
     init {

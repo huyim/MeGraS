@@ -6,23 +6,27 @@ import java.util.*
 
 class SegmentationBounds {
 
-    private var bounds = DoubleArray(6)
+    private var bounds = DoubleArray(6) { Double.NEGATIVE_INFINITY }
     var dimensions = 0
 
     constructor()
 
+    constructor(dimensions: Int) {
+        this.dimensions = dimensions
+    }
+
     constructor(shape: Shape) {
-        this.bounds = doubleArrayOf(shape.bounds.minX, shape.bounds.maxX, shape.bounds.minY, shape.bounds.maxY, 0.0, 0.0)
+        this.bounds = doubleArrayOf(shape.bounds.minX, shape.bounds.maxX, shape.bounds.minY, shape.bounds.maxY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY)
         dimensions = 2
     }
 
-    constructor(minX: Double, maxX: Double) {
-        this.bounds = doubleArrayOf(minX, maxX, 0.0, 0.0, 0.0, 0.0)
+    constructor(minZ: Double, maxZ: Double) {
+        this.bounds = doubleArrayOf(Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, minZ, maxZ)
         dimensions = 1
     }
 
     constructor(minX: Double, maxX: Double, minY: Double, maxY: Double) {
-        this.bounds = doubleArrayOf(minX, maxX, minY, maxY, 0.0, 0.0)
+        this.bounds = doubleArrayOf(minX, maxX, minY, maxY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY)
         dimensions = 2
     }
 
@@ -38,9 +42,9 @@ class SegmentationBounds {
     }
 
     fun intersects(rhs: SegmentationBounds): Boolean {
-        return this.bounds[0] <= rhs.bounds[1] && this.bounds[1] >= rhs.bounds[0] &&
-                this.bounds[2] <= rhs.bounds[3] && this.bounds[3] >= rhs.bounds[2] &&
-                this.bounds[4] <= rhs.bounds[5] && this.bounds[5] >= rhs.bounds[4]
+        return (this.bounds[0] <= rhs.bounds[1] && this.bounds[1] >= rhs.bounds[0]) ||
+                (this.bounds[2] <= rhs.bounds[3] && this.bounds[3] >= rhs.bounds[2]) ||
+                (this.bounds[4] <= rhs.bounds[5] && this.bounds[5] >= rhs.bounds[4])
     }
 
     fun translate(by: SegmentationBounds) {

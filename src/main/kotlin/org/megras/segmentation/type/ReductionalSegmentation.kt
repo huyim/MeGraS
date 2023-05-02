@@ -24,8 +24,7 @@ class Channel(val selection: List<String>) : ReductionalSegmentation {
     }
 
     override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is Channel) return false
-
+        if (rhs !is Channel) return true
         return this.selection.intersect(rhs.selection.toSet()).isNotEmpty()
     }
 
@@ -53,7 +52,7 @@ class Frequency(val low: Int, val high: Int) : ReductionalSegmentation {
     }
 
     override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is Frequency) return false
+        if (rhs !is Frequency) return true
         return this.high >= rhs.low && this.low <= rhs.high
     }
 

@@ -42,19 +42,6 @@ abstract class ThreeDimensionalSegmentation : Segmentation {
         return true
     }
 
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is ThreeDimensionalSegmentation) return false
-        if (!this.bounds.intersects(rhs.bounds)) return false
-
-        val timeBounds = this.bounds.getZBounds()
-        for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
-            val shape1 = this.slice(t.toDouble())
-            val shape2 = rhs.slice(t.toDouble())
-            if (shape1 != null && shape2 != null && shape1.intersects(shape2)) return true
-        }
-        return false
-    }
-
     abstract fun slice(time: Double): TwoDimensionalSegmentation?
 }
 
@@ -143,9 +130,10 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         val t = (time - startFrame) / (endFrame - startFrame)
         val newShape = ShapeInterpolator().evaluate(startShape.shape, endShape.shape, t.toFloat())
 
+        val keepBounds = bounds
         return object: TwoDimensionalSegmentation() {
             override var shape: Shape = newShape
-            override var bounds: SegmentationBounds = SegmentationBounds(shape)
+            override var bounds: SegmentationBounds = keepBounds
             override val segmentationType = null
             override fun toString(): String = ""
         }
@@ -153,7 +141,7 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
 
     override fun toString(): String = "segment/rotoscope/" + rotoscopeList.joinToString(";") {
         val shapeString = it.space.toString().removePrefix("segment/").replace("/", ",")
-        "${it.time},${shapeString})"
+        "${it.time},${shapeString}"
     }
 }
 
@@ -312,9 +300,10 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
             }
         }
 
+        val keepBounds = bounds
         return object: TwoDimensionalSegmentation() {
             override var shape: Shape = path
-            override var bounds: SegmentationBounds = SegmentationBounds(shape)
+            override var bounds: SegmentationBounds = keepBounds
             override val segmentationType = null
             override fun toString(): String = ""
         }
