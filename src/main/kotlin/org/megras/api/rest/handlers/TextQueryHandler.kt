@@ -6,9 +6,8 @@ import io.javalin.openapi.*
 import org.megras.api.rest.PostRequestHandler
 import org.megras.api.rest.RestErrorStatus
 import org.megras.api.rest.data.ApiQuad
+import org.megras.api.rest.data.ApiQueryResult
 import org.megras.api.rest.data.ApiTextQuery
-import org.megras.api.rest.data.ApiTextQueryResult
-import org.megras.data.graph.QuadValue
 import org.megras.graphstore.QuadSet
 
 
@@ -22,7 +21,7 @@ class TextQueryHandler(private val quads: QuadSet) : PostRequestHandler {
         methods = [HttpMethod.POST],
         requestBody = OpenApiRequestBody([OpenApiContent(ApiTextQuery::class)]),
         responses = [
-            OpenApiResponse("200", [OpenApiContent(ApiTextQueryResult::class)]),
+            OpenApiResponse("200", [OpenApiContent(ApiQueryResult::class)]),
             OpenApiResponse("400", [OpenApiContent(RestErrorStatus::class)]),
             OpenApiResponse("404", [OpenApiContent(RestErrorStatus::class)]),
         ]
@@ -43,6 +42,6 @@ class TextQueryHandler(private val quads: QuadSet) : PostRequestHandler {
             query.filterText//.mapNotNull { if (it != null) String(it) else null },
         ).map { ApiQuad(it) }
 
-        ctx.json(ApiTextQueryResult(results))
+        ctx.json(ApiQueryResult(results))
     }
 }
