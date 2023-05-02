@@ -17,19 +17,13 @@ object AudioVideoSegmenter {
     private const val outputFormat = "webm"
 
     fun segment(stream: SeekableByteChannel, segmentation: Segmentation): ByteArray? = try {
-        when(segmentation.segmentationType) {
-            SegmentationType.RECT -> segmentRect(stream, segmentation as Rect)
-            SegmentationType.POLYGON,
-            SegmentationType.BEZIER,
-            SegmentationType.BSPLINE,
-            SegmentationType.PATH,
-            SegmentationType.MASK,
-            SegmentationType.HILBERT,
-            SegmentationType.ROTOSCOPE,
-            SegmentationType.MESH -> segmentShape(stream, segmentation)
-            SegmentationType.TIME -> segmentTime(stream, segmentation as Time)
-            SegmentationType.FREQUENCY -> segmentFrequency(stream, segmentation as Frequency)
-            SegmentationType.CHANNEL -> segmentChannel(stream, segmentation as Channel)
+        when (segmentation) {
+            is Rect -> segmentRect(stream, segmentation)
+            is TwoDimensionalSegmentation,
+            is ThreeDimensionalSegmentation -> segmentPerFrame(stream, segmentation)
+            is Time -> segmentTime(stream, segmentation)
+            is Channel -> segmentChannel(stream, segmentation)
+            is Frequency -> segmentFrequency(stream, segmentation)
             else -> null
         }
     } catch (e: Exception) {
@@ -52,7 +46,7 @@ object AudioVideoSegmenter {
         return out.array()
     }
 
-    private fun segmentShape(stream: SeekableByteChannel, segmentation: Segmentation): ByteArray {
+    private fun segmentPerFrame(stream: SeekableByteChannel, segmentation: Segmentation): ByteArray {
         if (!hasStreamType(stream, StreamType.VIDEO)) {
             throw RestErrorStatus.noVideo
         }
@@ -79,17 +73,24 @@ object AudioVideoSegmenter {
     }
 
     /**
-     * 2 possible cases:
+     * 3 possible cases:
+     * - selection is color channel(s)
      * - selection is either "audio" or "video", then discard the other
      * - selection is indices of streams
      */
-    private fun segmentChannel(stream: SeekableByteChannel, channel: Channel): ByteArray {
+    private fun segmentChannel(stream: SeekableByteChannel, channel: Channel): ByteArray? {
+        // color channel selection
+        if (channel.selection.all { listOf("red", "green", "blue").contains(it) }) {
+            return segmentPerFrame(stream, channel)
+        }
+
         val out = SeekableInMemoryByteChannel()
         val ffmpeg = FFmpeg
             .atPath()
             .addInput(ChannelInput.fromChannel(stream))
             .setOverwriteOutput(true)
 
+        // 'audio' or 'video' stream selection
         if (channel.selection.size == 1 && (channel.selection[0] == "audio" || channel.selection[0] == "video")) {
             if (channel.selection[0] == "video" && !hasStreamType(stream, StreamType.VIDEO)) {
                 throw RestErrorStatus.noVideo
@@ -107,9 +108,13 @@ object AudioVideoSegmenter {
                     ffmpeg.addArguments("-c:a", "copy").addArgument("-vn")
                 }
             }
-        } else {
+        }
+        // stream number selection
+        else if (channel.selection.all { it.toIntOrNull() != null }){
             channel.selection.forEach { ffmpeg.addArguments("-map", "0:${it}") }
             ffmpeg.addArguments("-c", "copy")
+        } else {
+            return null
         }
 
         ffmpeg.addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat)).execute()

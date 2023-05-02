@@ -49,8 +49,16 @@ class VideoShapeSegmenter(
             3 -> segmentation.bounds.getZBounds()
             else -> null
         }
+        val frameWidth = when (xBounds[0]) {
+            Double.NEGATIVE_INFINITY -> width
+            else -> (xBounds[1] - xBounds[0]).toInt()
+        }
+        val frameHeight = when (yBounds[0]) {
+            Double.NEGATIVE_INFINITY -> height
+            else -> (yBounds[1] - yBounds[0]).toInt()
+        }
 
-        val frameProducer = createFrameProducer(frameIterator, tBounds?.get(0) ?: 0)
+        val frameProducer = createFrameProducer(frameIterator, tBounds?.get(0) ?: 0.0, frameWidth, frameHeight)
 
         val ffmpeg = FFmpeg.atPath()
             .addInput(
@@ -69,7 +77,6 @@ class VideoShapeSegmenter(
         }
         // Optionally crop frames
         ffmpeg
-            .setFilter(StreamType.VIDEO, "crop=w=${xBounds[1] - xBounds[0]}:h=${yBounds[1] - yBounds[0]}:x=${xBounds[0]}:y=${yBounds[0]}")
             .setOverwriteOutput(true)
             .addOutput(
                 ChannelOutput.toChannel("", out)
@@ -83,9 +90,9 @@ class VideoShapeSegmenter(
         return out.array()
     }
 
-    private fun createFrameProducer(frameIterator: FrameIterator, shift: Number): FrameProducer {
+    private fun createFrameProducer(frameIterator: FrameIterator, shift: Double, width: Int, height: Int): FrameProducer {
         return object : FrameProducer {
-            private val shiftTimecode = shift.toLong() * 1000
+            private val shiftTimecode = (shift * 1000.0).toLong()
             private val videoFrameDuration = (1000 / frameRate).toLong()
             private var timecode: Long = shiftTimecode
             private var nextVideoFrame: Frame? = null
@@ -124,11 +131,12 @@ class VideoShapeSegmenter(
                 }
 
                 val seg = when (segmentation) {
-                    is Rotoscope -> segmentation.interpolate(nextVideoFrameTimecode.toDouble() / 1000)
+                    is Rotoscope -> segmentation.slice(nextVideoFrameTimecode.toDouble() / 1000)
                     is Hilbert -> segmentation.toImageMask(width, height, nextVideoFrameTimecode.toDouble() / totalDuration)
-                    is MeshBody -> segmentation.slice(nextVideoFrameTimecode.toFloat() / 1000)
+                    is MeshBody -> segmentation.slice(nextVideoFrameTimecode.toDouble() / 1000)
                     else -> segmentation
                 } ?: return null
+
 
                 val segmentedImage = ImageSegmenter.segment(videoFrame.image, seg) ?: throw RestErrorStatus.invalidSegmentation
                 val result: Frame = Frame.createVideoFrame(0, nextVideoFrameTimecode, segmentedImage)

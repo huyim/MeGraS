@@ -28,7 +28,7 @@ object ImageSegmenter {
         when (segmentation) {
             is TwoDimensionalSegmentation -> segmentShape(image, segmentation, imageType)
             is Hilbert -> segmentHilbert(image, segmentation, imageType)
-            is Channel -> segmentChannel(image, segmentation)
+            is Channel -> segmentChannel(image, segmentation, imageType)
             else -> null
         }
 
@@ -59,21 +59,30 @@ object ImageSegmenter {
         return segmentShape(image, mask, imageType)
     }
 
-    private fun segmentChannel(image: BufferedImage, channel: Channel): BufferedImage {
+    private fun segmentChannel(image: BufferedImage, channel: Channel, imageType: Int): BufferedImage {
         for (x in 0 until image.width) {
             for (y in 0 until image.height) {
-                val rgb = image.getRGB(x, y)
-                var red = rgb and 0x00ff0000 shr 16
-                var green = rgb and 0x0000ff00 shr 8
-                var blue = rgb and 0x000000ff
+                val color = Color(image.getRGB(x, y))
+                var red = color.red
+                var green = color.green
+                var blue = color.blue
 
                 if (!channel.selection.contains("red")) red = 0
                 if (!channel.selection.contains("green")) green = 0
                 if (!channel.selection.contains("blue")) blue = 0
 
-                image.setRGB(x, y, Color(red, green, blue).rgb)
+                image.setRGB(x, y, Color(red, green, blue, color.alpha).rgb)
             }
         }
-        return image
+
+        return if (image.type != imageType) {
+            val out = BufferedImage(image.width, image.height, imageType)
+            val g = out.createGraphics()
+            g.drawImage(out, 0, 0, null)
+            g.dispose()
+            out
+        } else {
+            image
+        }
     }
 }
