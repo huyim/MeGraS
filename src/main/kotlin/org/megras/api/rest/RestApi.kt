@@ -40,7 +40,7 @@ object RestApi {
             get("/<objectId>/about", aboutObjectRequestHandler::get)
             get("/<objectId>/segment/{segmentation}/{segmentDefinition}/segment/{nextSegmentation}/{nextSegmentDefinition}/<tail>", canonicalSegmentRequestHandler::get)
             get("/<objectId>/segment/{segmentation}/{segmentDefinition}/segment/{nextSegmentation}/{nextSegmentDefinition}", canonicalSegmentRequestHandler::get)
-            get("/<objectId>/segment/{segmentation}/<segmentDefinition>", canonicalSegmentRequestHandler::get)
+            get("/<objectId>/segment/{segmentation}/{segmentDefinition}", canonicalSegmentRequestHandler::get)
             get("/<objectId>", cachedSegmentRequestHandler::get)
             post("/add", addFileRequestHandler::post)
         }.exception(RestErrorStatus::class.java) { e, ctx ->

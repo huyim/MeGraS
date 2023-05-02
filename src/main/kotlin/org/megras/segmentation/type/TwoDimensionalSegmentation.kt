@@ -221,6 +221,7 @@ class BSpline(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
 
 class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.MASK
+    override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override lateinit var shape: Shape
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override lateinit var bounds: SegmentationBounds
@@ -262,7 +263,7 @@ class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() 
     override fun toString(): String {
         val os = ByteArrayOutputStream()
         ImageIO.write(mask, "png", os)
-        val encoded = Base64.getEncoder().encodeToString(os.toByteArray())
+        val encoded = Base64.getUrlEncoder().encodeToString(os.toByteArray())
         return "segment/mask/$encoded"
     }
 }

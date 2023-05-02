@@ -76,7 +76,7 @@ object SegmentationUtil {
 
             SegmentationType.MASK -> {
                 try {
-                    val decoded = Base64.getDecoder().decode(segmentDefinition)
+                    val decoded = Base64.getUrlDecoder().decode(segmentDefinition)
                     val maskImage = ImageIO.read(ByteArrayInputStream(decoded))
                     ImageMask(maskImage)
                 } catch (e: Exception) {
