@@ -204,7 +204,7 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
 
         // Add the next vertices and faces to a new obj object
         val sortedObj = Objs.create()
-        sorter.getSortedIndices().forEach { i -> sortedObj.addVertex(vertices[i]) }
+        sorter.sortedIndices.forEach { i -> sortedObj.addVertex(vertices[i]) }
         faces.forEach {face ->
             val newFace = ObjFaces.create(face, null, null)
             sortedObj.addFace(newFace)
@@ -324,16 +324,11 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
 }
 
 class ObjVertexSorter(private val array: List<FloatTuple>) : Comparator<Int> {
-    private val indices = array.indices.toMutableList()
-
-    fun getSortedIndices(): MutableList<Int> {
-        indices.sortWith(this)
-        return indices
-    }
+    val sortedIndices = array.indices.sortedWith(this).toMutableList()
 
     fun getMapping(): HashMap<Int, Int> {
         val indexMap = hashMapOf<Int, Int>()
-        indices.forEachIndexed { index, i -> indexMap[i] = index }
+        sortedIndices.forEachIndexed { index, i -> indexMap[i] = index }
         return indexMap
     }
 
