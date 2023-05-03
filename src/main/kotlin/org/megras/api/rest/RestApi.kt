@@ -3,10 +3,8 @@ package org.megras.api.rest
 import io.javalin.Javalin
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.post
-import io.javalin.openapi.CookieAuth
 import io.javalin.openapi.plugin.OpenApiPlugin
 import io.javalin.openapi.plugin.OpenApiPluginConfiguration
-import io.javalin.openapi.plugin.SecurityComponentConfiguration
 import io.javalin.openapi.plugin.swagger.SwaggerConfiguration
 import io.javalin.openapi.plugin.swagger.SwaggerPlugin
 import org.megras.api.rest.handlers.*
@@ -29,6 +27,7 @@ object RestApi {
         val cachedSegmentRequestHandler = CachedSegmentRequestHandler(quadSet, objectStore)
         val canonicalSegmentRequestHandler = CanonicalSegmentRequestHandler(quadSet, objectStore)
         val aboutObjectRequestHandler = AboutObjectRequestHandler(quadSet, objectStore)
+        val objectPreviewRequestHandler = ObjectPreviewRequestHandler(quadSet, objectStore)
         val addFileRequestHandler = AddFileRequestHandler(quadSet, objectStore)
         val basicQueryHandler = BasicQueryHandler(quadSet)
 
@@ -69,6 +68,7 @@ object RestApi {
             get("/raw/{objectId}", rawObjectRequestHandler::get)
             get("/{objectId}", canonicalObjectRequestHandler::get)
             get("/{objectId}/about", aboutObjectRequestHandler::get)
+            get("/{objectId}/preview", objectPreviewRequestHandler::get)
             get("/{objectId}/c/{segmentId}", cachedSegmentRequestHandler::get)
             get("/{objectId}/segment/{segmentation}/<segmentDefinition>", canonicalSegmentRequestHandler::get)
             post("/add/file", addFileRequestHandler::post)
