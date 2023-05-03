@@ -4,8 +4,10 @@ import com.google.common.cache.CacheBuilder
 import io.grpc.ManagedChannelBuilder
 import io.grpc.StatusRuntimeException
 import org.megras.data.graph.*
+import org.megras.data.schema.MeGraS
 import org.megras.util.extensions.toBase64
 import org.vitrivr.cottontail.client.SimpleClient
+import org.vitrivr.cottontail.client.language.basics.Direction
 import org.vitrivr.cottontail.client.language.basics.Type
 import org.vitrivr.cottontail.client.language.basics.predicate.And
 import org.vitrivr.cottontail.client.language.basics.predicate.Expression
@@ -30,11 +32,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
 
     private companion object {
+        const val QUAD_TYPE = 0
         const val LOCAL_URI_TYPE = -1
         const val LONG_LITERAL_TYPE = -2
         const val DOUBLE_LITERAL_TYPE = -3
         const val STRING_LITERAL_TYPE = -4
-        const val BINARY_DATA_TYPE = 0
+
+        const val BINARY_DATA_TYPE = -9
         const val VECTOR_ID_OFFSET = -10
     }
 
@@ -113,7 +117,6 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             client.create(
                 CreateEntity("megras.entity")
                     .column("id", Type.LONG, autoIncrement = true)
-//                .column("prefix", Type.INTEGER)
                     .column("value", Type.STRING)
             )
         }
@@ -264,7 +267,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                 val batchInsert = BatchInsert("megras.literal_double").columns("value")
                 doubleValues.forEach {
-                    batchInsert.append(it.value)
+                    require(batchInsert.append(it.value)) { "could not add value to batch, try reducing batch size" }
                 }
 
                 client.insert(batchInsert)
@@ -312,7 +315,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                 val batchInsert = BatchInsert("megras.literal_string").columns("value")
                 stringValues.forEach {
-                    batchInsert.append(it.value)
+                    require(batchInsert.append(it.value)) { "could not add value to batch, try reducing batch size" }
                 }
                 client.insert(batchInsert)
 
@@ -378,7 +381,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                     val batchInsert = BatchInsert("megras.entity_prefix").columns("prefix")
                     prefixValues.forEach { value ->
-                        batchInsert.append(value)
+                        require(batchInsert.append(value)) { "could not add value to batch, try reducing batch size" }
                     }
                     client.insert(batchInsert)
 
@@ -424,7 +427,7 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
                     val batchInsert = BatchInsert("megras.entity").columns("value")
                     suffixValues.forEach { value ->
-                        batchInsert.append(value)
+                        require(batchInsert.append(value)) { "could not add value to batch, try reducing batch size" }
                     }
                     client.insert(batchInsert)
                     val result = client.query(
@@ -455,9 +458,99 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         }
 
-        //TODO batch vector
-        vectorValues.forEach {
-            returnMap[it] = getOrAddVectorQuadValueId(it)
+
+        if (vectorValues.isNotEmpty()) {
+
+            vectorValues.groupBy { it.type to it.length }.forEach { (properties, v) ->
+
+                val vectors = v.toMutableSet()
+
+                val entityId = getOrCreateVectorEntity(properties.first, properties.second)
+                val name = "megras.vector_values_${entityId}"
+
+
+                val result = when (properties.first) {
+                    VectorValue.Type.Double -> {
+                        val v = vectors.map { (it as DoubleVectorValue).vector }
+                        client.query(
+                            Query(name).select("*").where(Expression("value", "in", v))
+                        )
+                    }
+
+                    VectorValue.Type.Long -> {
+                        val v = vectors.map { (it as LongVectorValue).vector }
+                        client.query(
+                            Query(name).select("*").where(Expression("value", "in", v))
+                        )
+                    }
+                }
+
+                while (result.hasNext()) {
+                    val tuple = result.next()
+                    val id = tuple.asLong("id")!!
+                    val value = when (properties.first) {
+                        VectorValue.Type.Double -> DoubleVectorValue(tuple.asDoubleVector("value")!!)
+                        VectorValue.Type.Long -> LongVectorValue(tuple.asLongVector("value")!!)
+                    }
+                    val pair = (-entityId + VECTOR_ID_OFFSET) to id
+                    vectorValueValueCache.put(value, pair)
+                    vectorValueIdCache.put(pair, value)
+                    returnMap[value] = pair
+                    vectors.remove(value)
+                }
+
+                if (vectors.isNotEmpty()) {
+
+                    val insert = BatchInsert(name).columns("value")
+                    vectors.forEach {
+                        require(
+                            insert.append(
+                                when (properties.first) {
+                                    VectorValue.Type.Double -> (it as DoubleVectorValue).vector
+                                    VectorValue.Type.Long -> (it as LongVectorValue).vector
+                                }
+                            )
+                        ) {"could not add value to batch, try reducing batch size"}
+
+                    }
+                    client.insert(insert)
+
+
+                    val result = when (properties.first) {
+                        VectorValue.Type.Double -> {
+                            val v = vectors.map { (it as DoubleVectorValue).vector }
+                            client.query(
+                                Query(name).select("*").where(Expression("value", "in", v))
+                            )
+                        }
+
+                        VectorValue.Type.Long -> {
+                            val v = vectors.map { (it as LongVectorValue).vector }
+                            client.query(
+                                Query(name).select("*").where(Expression("value", "in", v))
+                            )
+                        }
+                    }
+
+                    while (result.hasNext()) {
+                        val tuple = result.next()
+                        val id = tuple.asLong("id")!!
+                        val value = when (properties.first) {
+                            VectorValue.Type.Double -> DoubleVectorValue(tuple.asDoubleVector("value")!!)
+                            VectorValue.Type.Long -> LongVectorValue(tuple.asLongVector("value")!!)
+                        }
+                        val pair = (-entityId + VECTOR_ID_OFFSET) to id
+                        vectorValueValueCache.put(value, pair)
+                        vectorValueIdCache.put(pair, value)
+                        returnMap[value] = pair
+                        vectors.remove(value)
+                    }
+
+                }
+
+
+            }
+
         }
 
         return returnMap
@@ -609,7 +702,14 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
     private fun getVectorQuadValue(type: Int, id: Long): VectorValue? {
 
-        val internalId = -type - VECTOR_ID_OFFSET
+        val pair = type to id
+
+        val cached = vectorValueIdCache.getIfPresent(pair)
+        if (cached != null) {
+            return cached
+        }
+
+        val internalId = -type + VECTOR_ID_OFFSET
 
         val properties = getVectorProperties(internalId) ?: return null
 
@@ -619,10 +719,13 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
 
         if (result.hasNext()) {
             val tuple = result.next()
-            return when (properties.second) {
+            val value = when (properties.second) {
                 VectorValue.Type.Double -> DoubleVectorValue(tuple.asDoubleVector("value")!!)
                 VectorValue.Type.Long -> LongVectorValue(tuple.asLongVector("value")!!)
             }
+            vectorValueValueCache.put(value, pair)
+            vectorValueIdCache.put(pair, value)
+            return value
         }
 
         return null
@@ -1049,13 +1152,6 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
             Query("megras.quads")
                 .select("id")
                 .where(
-//                    And(
-//                        And(
-//                            subjectFilterExpression(subject.first, subject.second),
-//                            predicateFilterExpression(predicate.first, predicate.second)
-//                        ),
-//                        objectFilterExpression(`object`.first, `object`.second)
-//                    )
                     Expression(
                         "hash",
                         "=",
@@ -1338,7 +1434,86 @@ class CottontailStore(host: String = "localhost", port: Int = 1865) : MutableQua
     }
 
     override fun nearestNeighbor(predicate: QuadValue, `object`: VectorValue, count: Int, distance: Distance): QuadSet {
-        TODO("Not yet implemented")
+
+        val predId = getQuadValueId(predicate)
+
+        if (predId.first == null || predId.second == null) {
+            return BasicQuadSet()
+        }
+
+        val vectorEntity = getVectorEntity(`object`.type, `object`.length) ?: return BasicQuadSet()
+        val vectorId = -vectorEntity + VECTOR_ID_OFFSET
+
+        val result = client.query(
+            Query("megras.quads")
+                .select("*")
+                .where(
+                    And(
+                        predicateFilterExpression(predId.first!!, predId.second!!),
+                        Expression("o_type", "=", vectorId)
+                    )
+                )
+        )
+
+        if (!result.hasNext()) {
+            return BasicQuadSet()
+        }
+
+        val objectIds = mutableSetOf<Long>()
+
+        val quadIds = mutableListOf<Pair<Long, Long>>() //quad id to object id
+
+        while (result.hasNext()) {
+            val tuple = result.next()
+            val o = tuple.asLong("o")!!
+            objectIds.add(o)
+            quadIds.add(tuple.asLong("id")!! to o)
+        }
+
+
+        val knnResult = client.query(
+            Query("megras.vector_values_${vectorEntity}")
+                .select("*")
+                .where(Expression("id", "in", objectIds))
+                .distance(
+                    "value",
+                    when (`object`) {
+                        is DoubleVectorValue -> `object`.vector
+                        is LongVectorValue -> `object`.vector
+                        else -> error("unknown vector value type")
+                    }, distance.cottontail(), "distance"
+                )
+                .limit(count.toLong())
+                .order("distance", Direction.ASC)
+
+        )
+
+        if (!knnResult.hasNext()) {
+            return BasicQuadSet()
+        }
+
+        val distances = mutableMapOf<Long, Double>()
+
+        while (knnResult.hasNext()) {
+            val tuple = knnResult.next()
+            distances[tuple.asLong("id")!!] = tuple.asDouble("distance")!!
+        }
+
+        val relevantQuadIds =
+            distances.keys.flatMap { oid -> quadIds.filter { it.second == oid } }.map { it.first }.toSet()
+        val relevantQuads = getIds(relevantQuadIds)
+
+        val ret = BasicMutableQuadSet()
+        ret.addAll(relevantQuads)
+
+        val quadIdMap = quadIds.toMap()
+
+        relevantQuads.forEach { quad ->
+            val distance = distances[quadIdMap[quad.id!!]!!] ?: return@forEach
+            ret.add(Quad(quad.`object`, MeGraS.QUERY_DISTANCE.uri, DoubleValue(distance)))
+        }
+
+        return ret
     }
 
     override fun textFilter(filterText: String): QuadSet {

@@ -10,6 +10,7 @@ enum class MeGraS(suffix: String) {
     CANONICAL_ID("canonicalId"), //raw id of canonical representation
     FILE_NAME("fileName"),
     SEGMENT_OF("segmentOf"),
+    QUERY_DISTANCE("queryDistance"),
     PREVIEW_ID("previewId") //raw id of object preview
     ;
 

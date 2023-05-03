@@ -16,6 +16,7 @@ class ImportCommand(private val quads: MutableQuadSet) : CliktCommand(name = "im
         .required()
 
     private val batchSize: Int by option("-b", "--batchSize").int().default(100)
+    private val skip: Int by option("-s", "--skip", help = "The number of lines at the beginning of the file to skip").int().default(0)
 
     override fun run() {
 
@@ -32,7 +33,14 @@ class ImportCommand(private val quads: MutableQuadSet) : CliktCommand(name = "im
 
         val splitter = "\t(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)".toRegex()
 
+        var skip = this.skip
+
         file.forEachLine { raw ->
+
+            if (skip-- >= 0) {
+                return@forEachLine
+            }
+
             val line = raw.split(splitter)
             if (line.size >= 3 ) {
                 val values = line.map { QuadValue.of(it) }

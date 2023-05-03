@@ -215,6 +215,10 @@ class DoubleVectorValue(val vector: DoubleArray) : VectorValue(Type.Double, vect
     override fun hashCode(): Int {
         return vector.contentHashCode()
     }
+
+    override fun toString(): String {
+        return vector.joinToString(separator = ", ", prefix = "[", postfix = "]^^DoubleVector", limit = 5)
+    }
 }
 
 class LongVectorValue(val vector: LongArray) : VectorValue(Type.Long, vector.size) {
@@ -253,5 +257,9 @@ class LongVectorValue(val vector: LongArray) : VectorValue(Type.Long, vector.siz
 
     override fun hashCode(): Int {
         return vector.contentHashCode()
+    }
+
+    override fun toString(): String {
+        return vector.joinToString(separator = ", ", prefix = "[", postfix = "]^^LongVector", limit = 5)
     }
 }
