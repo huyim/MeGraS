@@ -33,7 +33,7 @@ class VideoShapeSegmenter(
             FFmpeg.atPath()
                 .addInput(ChannelInput.fromChannel(videoStream))
                 .addOutput(
-                    FrameOutput.withConsumer(frameIterator.consumer)
+                    FrameOutput.withConsumerAlpha(frameIterator.consumer)
                         .setFrameRate(frameRate)
                 )
                 .setContextName("input")
