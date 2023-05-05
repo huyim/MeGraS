@@ -1,9 +1,6 @@
 package org.megras.segmentation.media
 
-import org.megras.segmentation.type.Channel
-import org.megras.segmentation.type.Hilbert
-import org.megras.segmentation.type.Segmentation
-import org.megras.segmentation.type.TwoDimensionalSegmentation
+import org.megras.segmentation.type.*
 import java.awt.Color
 import java.awt.geom.AffineTransform
 import java.awt.image.BufferedImage
@@ -28,7 +25,7 @@ object ImageSegmenter {
         when (segmentation) {
             is TwoDimensionalSegmentation -> segmentShape(image, segmentation, imageType)
             is Hilbert -> segmentHilbert(image, segmentation, imageType)
-            is Channel -> segmentChannel(image, segmentation, imageType)
+            is ColorChannel -> segmentColor(image, segmentation, imageType)
             else -> null
         }
 
@@ -59,7 +56,7 @@ object ImageSegmenter {
         return segmentShape(image, mask, imageType)
     }
 
-    private fun segmentChannel(image: BufferedImage, channel: Channel, imageType: Int): BufferedImage {
+    private fun segmentColor(image: BufferedImage, colorChannel: ColorChannel, imageType: Int): BufferedImage {
         for (x in 0 until image.width) {
             for (y in 0 until image.height) {
                 val color = Color(image.getRGB(x, y))
@@ -67,9 +64,9 @@ object ImageSegmenter {
                 var green = color.green
                 var blue = color.blue
 
-                if (!channel.selection.contains("red")) red = 0
-                if (!channel.selection.contains("green")) green = 0
-                if (!channel.selection.contains("blue")) blue = 0
+                if (!colorChannel.selection.contains("red")) red = 0
+                if (!colorChannel.selection.contains("green")) green = 0
+                if (!colorChannel.selection.contains("blue")) blue = 0
 
                 image.setRGB(x, y, Color(red, green, blue, color.alpha).rgb)
             }

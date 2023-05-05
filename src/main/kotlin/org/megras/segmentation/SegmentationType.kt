@@ -31,6 +31,8 @@ enum class SegmentationType {
 
     CHANNEL,
 
+    COLOR,
+
     TIME,
 
     CHARACTER,

@@ -5,7 +5,6 @@ import com.github.kokorin.jaffree.ffmpeg.*
 import com.github.kokorin.jaffree.ffprobe.FFprobe
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 import org.megras.api.rest.RestErrorStatus
-import org.megras.segmentation.*
 import org.megras.segmentation.type.*
 import java.nio.channels.SeekableByteChannel
 import java.util.concurrent.TimeUnit
@@ -20,9 +19,10 @@ object AudioVideoSegmenter {
         when (segmentation) {
             is Rect -> segmentRect(stream, segmentation)
             is TwoDimensionalSegmentation,
-            is ThreeDimensionalSegmentation -> segmentPerFrame(stream, segmentation)
-            is Time -> segmentTime(stream, segmentation)
+            is ThreeDimensionalSegmentation,
+            is ColorChannel -> segmentPerFrame(stream, segmentation)
             is Channel -> segmentChannel(stream, segmentation)
+            is Time -> segmentTime(stream, segmentation)
             is Frequency -> segmentFrequency(stream, segmentation)
             else -> null
         }
@@ -73,17 +73,11 @@ object AudioVideoSegmenter {
     }
 
     /**
-     * 3 possible cases:
-     * - selection is color channel(s)
+     * 2 possible cases:
      * - selection is either "audio" or "video", then discard the other
      * - selection is indices of streams
      */
     private fun segmentChannel(stream: SeekableByteChannel, channel: Channel): ByteArray? {
-        // color channel selection
-        if (channel.selection.all { listOf("red", "green", "blue").contains(it) }) {
-            return segmentPerFrame(stream, channel)
-        }
-
         val out = SeekableInMemoryByteChannel()
         val ffmpeg = FFmpeg
             .atPath()

@@ -10,7 +10,7 @@ object SegmentationUtil {
 
     fun shouldSwap(first: SegmentationType?, second: SegmentationType?): Boolean {
         return (first != SegmentationType.TIME && second == SegmentationType.TIME) ||
-            (first == SegmentationType.CHANNEL && second != SegmentationType.CHANNEL)
+            (first == SegmentationType.COLOR && second != SegmentationType.COLOR)
     }
 
     fun parseSegmentationType(name: String): SegmentationType? =
@@ -112,6 +112,11 @@ object SegmentationUtil {
             SegmentationType.CHANNEL -> {
                 val channels = segmentDefinition.split(",").map { it.trim() }
                 Channel(channels)
+            }
+
+            SegmentationType.COLOR -> {
+                val colors = segmentDefinition.split(",").map { it.trim() }
+                ColorChannel(colors)
             }
 
             SegmentationType.FREQUENCY -> {

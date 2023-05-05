@@ -31,6 +31,28 @@ class Channel(val selection: List<String>) : ReductionalSegmentation {
     override fun toString(): String = "segment/channel/" + selection.joinToString(",")
 }
 
+class ColorChannel(val selection: List<String>) : ReductionalSegmentation {
+    override val segmentationType: SegmentationType = SegmentationType.COLOR
+    override var bounds: SegmentationBounds = SegmentationBounds()
+
+    override fun equivalentTo(rhs: Segmentation): Boolean {
+        if (rhs !is ColorChannel) return false
+        return this.contains(rhs) && rhs.contains(this)
+    }
+
+    override fun contains(rhs: Segmentation): Boolean {
+        if (rhs !is ColorChannel) return false
+        return rhs.selection.all { this.selection.contains(it) }
+    }
+
+    override fun intersects(rhs: Segmentation): Boolean {
+        if (rhs !is ColorChannel) return true
+        return this.selection.intersect(rhs.selection.toSet()).isNotEmpty()
+    }
+
+    override fun toString(): String = "segment/color/" + selection.joinToString(",")
+}
+
 class Frequency(val low: Int, val high: Int) : ReductionalSegmentation {
     override val segmentationType: SegmentationType = SegmentationType.FREQUENCY
     override var bounds: SegmentationBounds = SegmentationBounds()
