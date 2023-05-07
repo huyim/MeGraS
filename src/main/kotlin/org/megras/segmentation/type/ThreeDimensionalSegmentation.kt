@@ -20,7 +20,7 @@ abstract class ThreeDimensionalSegmentation : Segmentation {
         if (rhs !is ThreeDimensionalSegmentation) return false
         if (this.bounds != rhs.bounds) return false
 
-        val timeBounds = this.bounds.getZBounds()
+        val timeBounds = this.bounds.getTBounds()
         for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
             val shape1 = this.slice(t.toDouble())
             val shape2 = rhs.slice(t.toDouble())
@@ -33,7 +33,7 @@ abstract class ThreeDimensionalSegmentation : Segmentation {
         if (rhs !is ThreeDimensionalSegmentation) return false
         if (!this.bounds.contains(rhs.bounds)) return false
 
-        val timeBounds = rhs.bounds.getZBounds()
+        val timeBounds = rhs.bounds.getTBounds()
         for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
             val shape1 = this.slice(t.toDouble())
             val shape2 = rhs.slice(t.toDouble())
@@ -108,7 +108,7 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
     override fun translate(by: SegmentationBounds) {
         if (by.dimensions >= 2) {
             rotoscopeList.forEach {
-                it.time += by.getMinZ()
+                it.time += by.getMinT()
                 it.space.translate(by)
             }
             bounds.translate(by)
@@ -215,12 +215,12 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
     override fun translate(by: SegmentationBounds) {
         val minX = by.getMinX().toFloat()
         val minY = by.getMinY().toFloat()
-        val minZ = by.getMinZ().toFloat()
+        val minT = by.getMinT().toFloat()
 
         val newObj = Objs.create()
         for (i in 0 until obj.numVertices) {
             val vertex = obj.getVertex(i)
-            newObj.addVertex(vertex.x + minX, vertex.y + minY, vertex.z + minZ)
+            newObj.addVertex(vertex.x + minX, vertex.y + minY, vertex.z + minT)
         }
         for (j in 0 until obj.numFaces) {
             val face = obj.getFace(j)

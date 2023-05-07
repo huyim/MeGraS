@@ -6,7 +6,7 @@ import java.util.*
 
 class SegmentationBounds {
 
-    private var bounds = DoubleArray(6) { Double.NEGATIVE_INFINITY }
+    private var bounds = DoubleArray(6) { Double.NaN }
     var dimensions = 0
 
     constructor()
@@ -15,19 +15,29 @@ class SegmentationBounds {
         this.dimensions = dimensions
     }
 
+    constructor(boundString: String) {
+        bounds = boundString.split(",").map {
+            if (it == "-") {
+                Double.NaN
+            } else {
+                it.toDouble()
+            }
+        }.toDoubleArray()
+    }
+
     constructor(shape: Shape) {
         this.bounds = doubleArrayOf(
             shape.bounds.minX.coerceAtLeast(0.0), shape.bounds.maxX.coerceAtLeast(0.0),
             shape.bounds.minY.coerceAtLeast(0.0), shape.bounds.maxY.coerceAtLeast(0.0),
-            Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY)
+            Double.NaN, Double.NaN)
         dimensions = 2
     }
 
-    constructor(minZ: Double, maxZ: Double) {
+    constructor(minT: Double, maxT: Double) {
         this.bounds = doubleArrayOf(
-            Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY,
-            Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY,
-            minZ.coerceAtLeast(0.0), maxZ.coerceAtLeast(0.0))
+            Double.NaN, Double.NaN,
+            Double.NaN, Double.NaN,
+            minT.coerceAtLeast(0.0), maxT.coerceAtLeast(0.0))
         dimensions = 1
     }
 
@@ -35,15 +45,15 @@ class SegmentationBounds {
         this.bounds = doubleArrayOf(
             minX.coerceAtLeast(0.0), maxX.coerceAtLeast(0.0),
             minY.coerceAtLeast(0.0), maxY.coerceAtLeast(0.0),
-            Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY)
+            Double.NaN, Double.NaN)
         dimensions = 2
     }
 
-    constructor(minX: Double, maxX: Double, minY: Double, maxY: Double, minZ: Double, maxZ: Double) {
+    constructor(minX: Double, maxX: Double, minY: Double, maxY: Double, minT: Double, maxT: Double) {
         this.bounds = doubleArrayOf(
             minX.coerceAtLeast(0.0), maxX.coerceAtLeast(0.0),
             minY.coerceAtLeast(0.0), maxY.coerceAtLeast(0.0),
-            minZ.coerceAtLeast(0.0), maxZ.coerceAtLeast(0.0))
+            minT.coerceAtLeast(0.0), maxT.coerceAtLeast(0.0))
         dimensions = 3
     }
 
@@ -69,13 +79,13 @@ class SegmentationBounds {
 
     fun getMinY(): Double = bounds[2]
 
-    fun getMinZ(): Double = bounds[4]
+    fun getMinT(): Double = bounds[4]
 
     fun getXBounds(): DoubleArray = bounds.copyOfRange(0, 2)
 
     fun getYBounds(): DoubleArray = bounds.copyOfRange(2, 4)
 
-    fun getZBounds(): DoubleArray = bounds.copyOfRange(4, 6)
+    fun getTBounds(): DoubleArray = bounds.copyOfRange(4, 6)
 
-    override fun toString() = bounds.joinToString(",")
+    override fun toString() = bounds.map { if (it.isNaN()) {"-"} else {it} }.joinToString(",")
 }

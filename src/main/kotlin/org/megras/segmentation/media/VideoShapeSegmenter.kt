@@ -46,7 +46,7 @@ class VideoShapeSegmenter(
         val xBounds = segmentation.bounds.getXBounds()
         val yBounds = segmentation.bounds.getYBounds()
         val tBounds = when (segmentation.bounds.dimensions) {
-            3 -> segmentation.bounds.getZBounds()
+            3 -> segmentation.bounds.getTBounds()
             else -> null
         }
         val frameWidth = when (xBounds[0]) {
