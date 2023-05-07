@@ -4,79 +4,64 @@ import org.megras.segmentation.SegmentationBounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 
-interface ReductionalSegmentation : Segmentation {
-    override val segmentationClass: SegmentationClass
-        get() = SegmentationClass.REDUCE
+abstract class ReductionalSegmentation : Segmentation {
+    override val segmentationClass = SegmentationClass.REDUCE
+    override var bounds: SegmentationBounds = SegmentationBounds()
 }
 
-class Channel(val selection: List<String>) : ReductionalSegmentation {
-    override val segmentationType: SegmentationType = SegmentationType.CHANNEL
-    override var bounds: SegmentationBounds = SegmentationBounds()
+abstract class ChannelSegmentation(val selection: List<String>) : ReductionalSegmentation() {
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
-        if (rhs !is Channel) return false
+        if (rhs !is ChannelSegmentation) return false
         return this.contains(rhs) && rhs.contains(this)
     }
 
     override fun contains(rhs: Segmentation): Boolean {
-        if (rhs !is Channel) return false
+        if (rhs !is ChannelSegmentation) return false
         return rhs.selection.all { this.selection.contains(it) }
     }
 
     override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is Channel) return true
+        if (rhs !is ChannelSegmentation) return true
         return this.selection.intersect(rhs.selection.toSet()).isNotEmpty()
     }
+}
+
+class StreamChannel(selection: List<String>) : ChannelSegmentation(selection) {
+    override val segmentationType: SegmentationType = SegmentationType.CHANNEL
 
     override fun toString(): String = "segment/channel/" + selection.joinToString(",")
 }
 
-class ColorChannel(val selection: List<String>) : ReductionalSegmentation {
+class ColorChannel(selection: List<String>) : ChannelSegmentation(selection) {
     override val segmentationType: SegmentationType = SegmentationType.COLOR
-    override var bounds: SegmentationBounds = SegmentationBounds()
-
-    override fun equivalentTo(rhs: Segmentation): Boolean {
-        if (rhs !is ColorChannel) return false
-        return this.contains(rhs) && rhs.contains(this)
-    }
-
-    override fun contains(rhs: Segmentation): Boolean {
-        if (rhs !is ColorChannel) return false
-        return rhs.selection.all { this.selection.contains(it) }
-    }
-
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is ColorChannel) return true
-        return this.selection.intersect(rhs.selection.toSet()).isNotEmpty()
-    }
 
     override fun toString(): String = "segment/color/" + selection.joinToString(",")
 }
 
-class Frequency(val low: Int, val high: Int) : ReductionalSegmentation {
+class Frequency(val interval: Interval<Int>) : ReductionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.FREQUENCY
-    override var bounds: SegmentationBounds = SegmentationBounds()
 
     init {
-        require(low <= high) {
+        require(interval.low <= interval.high) {
             throw IllegalArgumentException("Frequency band is not valid.")
         }
     }
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         if (rhs !is Frequency) return false
-        return this.low == rhs.low && this.high == rhs.high
+        return this.interval.low == rhs.interval.low && this.interval.high == rhs.interval.high
     }
 
     override fun contains(rhs: Segmentation): Boolean {
         if (rhs !is Frequency) return false
-        return this.low <= rhs.low && this.high >= rhs.high
+        return this.interval.low <= rhs.interval.low && this.interval.high >= rhs.interval.high
     }
 
     override fun intersects(rhs: Segmentation): Boolean {
         if (rhs !is Frequency) return true
-        return this.high >= rhs.low && this.low <= rhs.high
+        return this.interval.high >= rhs.interval.low && this.interval.low <= rhs.interval.high
     }
 
-    override fun toString(): String = "segment/frequency/$low-$high"
+    override fun toString(): String = "segment/frequency/$interval.low-$interval.high"
 }

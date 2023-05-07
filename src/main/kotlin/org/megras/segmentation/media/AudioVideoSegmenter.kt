@@ -21,7 +21,7 @@ object AudioVideoSegmenter {
             is TwoDimensionalSegmentation,
             is ThreeDimensionalSegmentation,
             is ColorChannel -> segmentPerFrame(stream, segmentation)
-            is Channel -> segmentChannel(stream, segmentation)
+            is ChannelSegmentation -> segmentChannel(stream, segmentation)
             is Time -> segmentTime(stream, segmentation)
             is Frequency -> segmentFrequency(stream, segmentation)
             else -> null
@@ -77,7 +77,7 @@ object AudioVideoSegmenter {
      * - selection is either "audio" or "video", then discard the other
      * - selection is indices of streams
      */
-    private fun segmentChannel(stream: SeekableByteChannel, channel: Channel): ByteArray? {
+    private fun segmentChannel(stream: SeekableByteChannel, channel: ChannelSegmentation): ByteArray? {
         val out = SeekableInMemoryByteChannel()
         val ffmpeg = FFmpeg
             .atPath()
@@ -125,7 +125,7 @@ object AudioVideoSegmenter {
         FFmpeg.atPath()
             .addInput(ChannelInput.fromChannel(stream))
             .setOverwriteOutput(true)
-            .addArguments("-filter:a", "highpass=f=${frequency.low}, lowpass=f=${frequency.high}")
+            .addArguments("-filter:a", "highpass=f=${frequency.interval.low}, lowpass=f=${frequency.interval.high}")
             .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
             .execute()
 
@@ -135,35 +135,29 @@ object AudioVideoSegmenter {
     private fun segmentTime(stream: SeekableByteChannel, time: Time): ByteArray {
         val out = SeekableInMemoryByteChannel()
 
-        if (time.intervals.size == 1) {
-            FFmpeg.atPath()
-                .addInput(ChannelInput.fromChannel(stream).setPosition(time.intervals[0].low, TimeUnit.SECONDS)
-                    .setDuration(time.intervals[0].high - time.intervals[0].low, TimeUnit.SECONDS))
-                .setOverwriteOutput(true)
-                .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
-                .execute()
-        } else {
-            val firstPoint = time.intervals.first().low
-            val lastPoint = time.intervals.last().high
+        val firstPoint = time.intervals.first().low.toDouble()
+        val lastPoint = time.intervals.last().high.toDouble()
 
+        val ffmpeg = FFmpeg.atPath()
+                .addInput(ChannelInput.fromChannel(stream).setPosition(firstPoint, TimeUnit.SECONDS)
+                        .setDuration(lastPoint - firstPoint, TimeUnit.SECONDS))
+                .setOverwriteOutput(true)
+
+        if (time.intervals.size > 1) {
             val discard = time.getIntervalsToDiscard()
 
             // The video between segments is turned black (need shifting because beginning might be cut away)
             // TODO: figure out how to make it transparent instead of black
             val blackFilters = discard.map { "drawbox=t=fill:c=black:enable='between(t,${it.low - firstPoint},${it.high - firstPoint})'" }
+            ffmpeg.addArguments("-vf", blackFilters.joinToString(", "))
 
             // The audio between segments is muted (need shifting because beginning might be cut away)
             val muteFilters = time.getIntervalsToDiscard().map { "volume=enable='between(t,${it.low - firstPoint},${it.high - firstPoint})':volume=0" }
-
-            FFmpeg.atPath()
-                .addInput(ChannelInput.fromChannel(stream).setPosition(firstPoint, TimeUnit.SECONDS)
-                    .setDuration(lastPoint - firstPoint, TimeUnit.SECONDS))
-                .setOverwriteOutput(true)
-                .addArguments("-vf", blackFilters.joinToString(", "))
-                .addArguments("-af", muteFilters.joinToString(", "))
-                .addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
-                .execute()
+            ffmpeg.addArguments("-af", muteFilters.joinToString(", "))
         }
+
+        ffmpeg.addOutput(ChannelOutput.toChannel("", out).setFormat(outputFormat))
+                .execute()
 
         return out.array()
     }

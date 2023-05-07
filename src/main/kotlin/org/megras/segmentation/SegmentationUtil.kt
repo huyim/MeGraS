@@ -111,7 +111,7 @@ object SegmentationUtil {
 
             SegmentationType.CHANNEL -> {
                 val channels = segmentDefinition.split(",").map { it.trim() }
-                Channel(channels)
+                StreamChannel(channels)
             }
 
             SegmentationType.COLOR -> {
@@ -123,7 +123,7 @@ object SegmentationUtil {
                 val intervals = parseIntIntervals(segmentDefinition) ?: return null
 
                 if (intervals.size == 1) {
-                    Frequency(intervals[0].low, intervals[0].high)
+                    Frequency(intervals[0])
                 } else {
                     null
                 }

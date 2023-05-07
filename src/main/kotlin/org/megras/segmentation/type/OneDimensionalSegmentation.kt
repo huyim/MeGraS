@@ -12,7 +12,7 @@ import kotlin.math.roundToLong
 data class Interval<T : Number>(val low: T, val high: T)
 
 abstract class OneDimensionalSegmentation : Segmentation {
-    abstract val intervals: List<Interval<*>>
+    abstract var intervals: List<Interval<*>>
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         return this.contains(rhs) && rhs.contains(this)
@@ -35,7 +35,49 @@ private operator fun Number.compareTo(low: Number): Int {
     return this.toDouble().compareTo(low.toDouble())
 }
 
-class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<Interval<Long>>) : OneDimensionalSegmentation() {
+private operator fun Number.plus(other: Number): Number {
+    if (this is Int) return this.plus(other.toInt())
+    if (this is Double) return this.plus(other.toDouble())
+    if (this is Long) return this.plus(other.toLong())
+    return this.toDouble().plus(other.toDouble())
+}
+
+abstract class TemporalSegmentation(final override var intervals: List<Interval<*>>) : OneDimensionalSegmentation(), Translatable {
+    override val segmentationClass: SegmentationClass = SegmentationClass.TIME
+    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
+
+    override fun translate(by: SegmentationBounds) {
+        if (by.dimensions == 1) {
+            intervals = intervals.map { Interval(it.low + by.getMinX(), it.high + by.getMinX()) }
+            bounds.translate(by)
+        }
+    }
+
+    override fun toString(): String = "segment/" + segmentationType!!.name.lowercase() + "/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
+}
+
+class Time(intervals: List<Interval<Double>>) : TemporalSegmentation(intervals) {
+    override val segmentationType = SegmentationType.TIME
+
+    fun getIntervalsToDiscard(): List<Interval<Double>> {
+        val newIntervals = mutableListOf<Interval<Double>>()
+
+        for (i in 0 until intervals.size - 1) {
+            newIntervals.add(Interval(intervals[i].high.toDouble(), intervals[i + 1].low.toDouble()))
+        }
+        return newIntervals
+    }
+}
+
+class Character(intervals: List<Interval<Int>>) : TemporalSegmentation(intervals) {
+    override val segmentationType = SegmentationType.CHARACTER
+}
+
+class Page(intervals: List<Interval<Int>>) : TemporalSegmentation(intervals) {
+    override val segmentationType = SegmentationType.PAGE
+}
+
+class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<Interval<*>>) : OneDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.HILBERT
     override val segmentationClass: SegmentationClass = when (dimensions) {
         2 -> SegmentationClass.SPACE
@@ -88,58 +130,4 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
     }
 
     override fun toString(): String = "segment/hilbert/${dimensions},${order}," + intervals.joinToString(",") {"${it.low}-${it.high}"}
-}
-
-class Time(override var intervals: List<Interval<Double>>) : OneDimensionalSegmentation(), Translatable {
-    override val segmentationType: SegmentationType = SegmentationType.TIME
-    override val segmentationClass = SegmentationClass.TIME
-    override var bounds = SegmentationBounds(intervals.first().low, intervals.last().high)
-
-    override fun translate(by: SegmentationBounds) {
-        if (by.dimensions == 1) {
-            intervals = intervals.map { Interval(it.low + by.getMinX(), it.high + by.getMinX()) }
-            bounds.translate(by)
-        }
-    }
-
-    fun getIntervalsToDiscard(): List<Interval<Double>> {
-        val newIntervals = mutableListOf<Interval<Double>>()
-
-        for (i in 0 until intervals.size - 1) {
-            newIntervals.add(Interval(intervals[i].high, intervals[i + 1].low))
-        }
-        return newIntervals
-    }
-
-    override fun toString(): String = "segment/time/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
-}
-
-class Character(override var intervals: List<Interval<Int>>) : OneDimensionalSegmentation(), Translatable {
-    override val segmentationType = SegmentationType.CHARACTER
-    override val segmentationClass = SegmentationClass.TIME
-    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
-
-    override fun translate(by: SegmentationBounds) {
-        if (by.dimensions == 1) {
-            intervals = intervals.map { Interval(it.low + by.getMinX().toInt(), it.high + by.getMinX().toInt()) }
-            bounds.translate(by)
-        }
-    }
-
-    override fun toString(): String = "segment/character/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
-}
-
-class Page(override var intervals: List<Interval<Int>>) : OneDimensionalSegmentation(), Translatable {
-    override val segmentationType = SegmentationType.PAGE
-    override val segmentationClass = SegmentationClass.TIME
-    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
-
-    override fun translate(by: SegmentationBounds) {
-        if (by.dimensions == 1) {
-            intervals = intervals.map { Interval(it.low + by.getMinX().toInt(), it.high + by.getMinX().toInt()) }
-            bounds.translate(by)
-        }
-    }
-
-    override fun toString(): String = "segment/page/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
 }
