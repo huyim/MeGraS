@@ -57,10 +57,22 @@ class SegmentationBounds {
         dimensions = 3
     }
 
+    override fun equals(other: Any?): Boolean {
+        if (other !is SegmentationBounds) return false
+        return this.dimensions == other.dimensions && this.bounds.contentEquals(other.bounds)
+    }
+
     fun contains(rhs: SegmentationBounds): Boolean {
-        return this.bounds[0] <= rhs.bounds[0] && this.bounds[1] >= rhs.bounds[1] &&
-                this.bounds[2] <= rhs.bounds[2] && this.bounds[3] >= rhs.bounds[3] &&
-                this.bounds[4] <= rhs.bounds[4] && this.bounds[5] >= rhs.bounds[5]
+        if (this.dimensions != rhs.dimensions) return false
+        return when (dimensions) {
+            1 -> this.bounds[4] <= rhs.bounds[4] && this.bounds[5] >= rhs.bounds[5]
+            2 -> this.bounds[0] <= rhs.bounds[0] && this.bounds[1] >= rhs.bounds[1] &&
+                    this.bounds[2] <= rhs.bounds[2] && this.bounds[3] >= rhs.bounds[3]
+            3 -> this.bounds[0] <= rhs.bounds[0] && this.bounds[1] >= rhs.bounds[1] &&
+                    this.bounds[2] <= rhs.bounds[2] && this.bounds[3] >= rhs.bounds[3] &&
+                    this.bounds[4] <= rhs.bounds[4] && this.bounds[5] >= rhs.bounds[5]
+            else -> false
+        }
     }
 
     fun intersects(rhs: SegmentationBounds): Boolean {

@@ -9,16 +9,17 @@ import org.megras.data.fs.StoredObjectDescriptor
 import org.megras.data.fs.StoredObjectId
 import org.megras.data.graph.LocalQuadValue
 import org.megras.data.graph.Quad
+import org.megras.data.graph.QuadValue
 import org.megras.data.graph.StringValue
 import org.megras.data.model.MediaType
 import org.megras.data.schema.MeGraS
 import org.megras.data.schema.SchemaOrg
 import org.megras.graphstore.MutableQuadSet
+import org.megras.graphstore.QuadSet
 import org.megras.id.ObjectId
 import org.megras.segmentation.SegmentationUtil
 import org.megras.segmentation.media.*
 import org.megras.segmentation.type.Segmentation
-import org.megras.segmentation.type.Translatable
 import org.megras.util.HashUtil
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -41,7 +42,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         val lookInCache = ctx.queryParam("nocache") == null
 
         val segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
-        val currentPath = "$objectId/$segmentation"
+        val currentPath = "$objectId/${segmentation.toURI()}"
 
         // check for an additional segmentation
         if (ctx.pathParamMap().containsKey("nextSegmentation")) {
@@ -49,10 +50,8 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             val nextSegmentDefinition = ctx.pathParam("nextSegmentDefinition")
             nextSegmentPath = "segment/$nextSegmentType/$nextSegmentDefinition"
 
-            val nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
-            if (nextSegmentation is Translatable) {
-                nextSegmentation.translate(segmentation.bounds)
-            }
+            var nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
+            nextSegmentation = nextSegmentation.translate(segmentation.bounds)
 
             // if two segmentations of the same type are not overlapping, no valid result can be computed
             if (!segmentation.intersects(nextSegmentation)) {
@@ -73,7 +72,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
             // reorder based on the segmentation types
             if (SegmentationUtil.shouldSwap(segmentation.segmentationType, nextSegmentation.segmentationType)) {
-                ctx.redirect("/$objectId/$nextSegmentPath/$segmentation" + (if (tail != null) "/$tail" else ""))
+                ctx.redirect("/$objectId/$nextSegmentPath/${segmentation.toURI()}" + (if (tail != null) "/$tail" else ""))
                 return
             }
         }
@@ -86,12 +85,43 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             if (findEquivalentInCache(ctx, segmentation, currentPath, nextSegmentPath)) return
         }
 
-        val storedObject = getStoredObjectInCache(ctx.pathParam("objectId"))
+        var previousContainsThisSegmentation = false
+        var pathWithoutPrevious = ""
+        var segmentTranslatedByPrevious: Segmentation? = null
+        if (objectId.contains("/c/")) {
+            pathWithoutPrevious = objectId.substringBeforeLast("/c/")
+            val relevant = quads.filterSubject(LocalQuadValue(objectId))
+            if (relevant.size > 0) {
+                val previousSegmentation = getSegmentationForCached(relevant, LocalQuadValue(objectId))
+                if (previousSegmentation != null) {
+                    segmentTranslatedByPrevious = segmentation.translate(previousSegmentation.bounds)
+
+                    // if this segmentation is equivalent to previous, skip and redirect to it
+                    if (previousSegmentation.equivalentTo(segmentTranslatedByPrevious)) {
+                        quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, LocalQuadValue(objectId)))
+                        quads.add(Quad(LocalQuadValue("$pathWithoutPrevious/${segmentTranslatedByPrevious.toURI()}"), SchemaOrg.SAME_AS.uri, LocalQuadValue(objectId)))
+                        redirect(ctx, LocalQuadValue(objectId).uri, nextSegmentPath)
+                        return
+                    }
+
+                    if (previousSegmentation.contains(segmentTranslatedByPrevious)) {
+                        previousContainsThisSegmentation = true
+                    }
+                }
+            }
+        }
+
+        val storedObject = if (previousContainsThisSegmentation) {
+            getStoredObjectInCache(pathWithoutPrevious)
+        } else {
+            getStoredObjectInCache(objectId)
+        }
 
         val segment: ByteArray = when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
             MediaType.TEXT -> TextSegmenter.segment(storedObject.inputStream(), segmentation)
             MediaType.IMAGE -> ImageSegmenter.segment(storedObject.inputStream(), segmentation)
-            MediaType.AUDIO, MediaType.VIDEO -> AudioVideoSegmenter.segment(storedObject.byteChannel(), segmentation)
+            MediaType.AUDIO,
+            MediaType.VIDEO -> AudioVideoSegmenter.segment(storedObject.byteChannel(), segmentation)
             MediaType.DOCUMENT -> DocumentSegmenter.segment(storedObject.inputStream(), segmentation)
             MediaType.MESH -> MeshSegmenter.segment(storedObject.inputStream(), segmentation)
             MediaType.UNKNOWN, null -> throw RestErrorStatus.unknownMediaType
@@ -109,15 +139,20 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         inStream.reset()
         objectStore.store(inStream, descriptor)
 
-        val cacheId = HashUtil.hashToBase64("$segmentType/$segmentDefinition", HashUtil.HashType.MD5)
+        val cacheId = HashUtil.hashToBase64("${segmentation.getType()}/${segmentation.getDefinition()}", HashUtil.HashType.MD5)
         val cacheObject = LocalQuadValue("$objectId/c/$cacheId")
 
-        quads.add(Quad(cacheObject, MeGraS.CANONICAL_ID.uri, StringValue(descriptor.id.id)))
-        quads.add(Quad(cacheObject, MeGraS.SEGMENT_OF.uri, ObjectId(objectId)))
-        quads.add(Quad(cacheObject, MeGraS.SEGMENT_TYPE.uri, StringValue(segmentType)))
-        quads.add(Quad(cacheObject, MeGraS.SEGMENT_DEFINITION.uri, StringValue(segmentDefinition)))
-        quads.add(Quad(cacheObject, MeGraS.SEGMENT_BOUNDS.uri, StringValue(segmentation.bounds.toString())))
-        quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cacheObject))
+        storeInQuads(currentPath, cacheObject, descriptor.id.id, objectId,
+            segmentation.getType(), segmentation.getDefinition(), segmentation.bounds.toString())
+
+        // if this segmentation is contained in the previous, also store it without previous
+        if (previousContainsThisSegmentation) {
+            val modifiedPath = "$pathWithoutPrevious/${segmentTranslatedByPrevious!!.toURI()}"
+            val modifiedCacheObject = LocalQuadValue("$pathWithoutPrevious/c/$cacheId")
+
+            storeInQuads(modifiedPath, modifiedCacheObject, descriptor.id.id, objectId,
+                segmentTranslatedByPrevious.getType(), segmentTranslatedByPrevious.getDefinition(), segmentTranslatedByPrevious.bounds.toString())
+        }
 
         redirect(ctx, currentPath, nextSegmentPath)
     }
@@ -141,11 +176,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 listOf(potentialMatch.subject), listOf(MeGraS.SEGMENT_BOUNDS.uri), listOf(StringValue(segmentation.bounds.toString()))
             ).forEach { _ ->
                 // if the bounds match, check the segmentation
-                val segmentTypeQuad = quads.filter(listOf(potentialMatch.subject), listOf(MeGraS.SEGMENT_TYPE.uri), null).firstOrNull()
-                val potentialMatchType = segmentTypeQuad?.`object` as StringValue
-                val segmentDefinitionQuad = quads.filter(listOf(potentialMatch.subject), listOf(MeGraS.SEGMENT_DEFINITION.uri), null).firstOrNull()
-                val potentialMatchDefinition = segmentDefinitionQuad?.`object` as StringValue
-                val potentialMatchSegmentation = SegmentationUtil.parseSegmentation(potentialMatchType.value, potentialMatchDefinition.value) ?: return@forEach
+                val potentialMatchSegmentation = getSegmentationForCached(quads, potentialMatch.subject) ?: return@forEach
 
                 if (segmentation.equivalentTo(potentialMatchSegmentation)) {
                     val cached = potentialMatch.subject as LocalQuadValue
@@ -159,6 +190,14 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         return false
     }
 
+    private fun getSegmentationForCached(quads: QuadSet, cacheObject: QuadValue): Segmentation? {
+        val segmentTypeQuad = quads.filter(listOf(cacheObject), listOf(MeGraS.SEGMENT_TYPE.uri), null).first()
+        val potentialMatchType = segmentTypeQuad.`object` as StringValue
+        val segmentDefinitionQuad = quads.filter(listOf(cacheObject), listOf(MeGraS.SEGMENT_DEFINITION.uri), null).first()
+        val potentialMatchDefinition = segmentDefinitionQuad.`object` as StringValue
+        return SegmentationUtil.parseSegmentation(potentialMatchType.value, potentialMatchDefinition.value)
+    }
+
     private fun getStoredObjectInCache(objectId: String): ObjectStoreResult {
         val canonicalId = quads.filter(
             setOf(ObjectId(objectId)),
@@ -167,6 +206,23 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         ).firstOrNull()?.`object` as? StringValue ?: throw RestErrorStatus.notFound
         val osId = StoredObjectId.of(canonicalId.value) ?: throw RestErrorStatus.notFound
         return objectStore.get(osId) ?: throw RestErrorStatus.notFound
+    }
+
+    private fun storeInQuads(
+        path: String,
+        cacheObject: LocalQuadValue,
+        canonicalId: String,
+        objectId: String,
+        segmentType: String,
+        segmentDefinition: String,
+        bounds: String
+    ) {
+        quads.add(Quad(cacheObject, MeGraS.CANONICAL_ID.uri, StringValue(canonicalId)))
+        quads.add(Quad(cacheObject, MeGraS.SEGMENT_OF.uri, ObjectId(objectId)))
+        quads.add(Quad(cacheObject, MeGraS.SEGMENT_TYPE.uri, StringValue(segmentType)))
+        quads.add(Quad(cacheObject, MeGraS.SEGMENT_DEFINITION.uri, StringValue(segmentDefinition)))
+        quads.add(Quad(cacheObject, MeGraS.SEGMENT_BOUNDS.uri, StringValue(bounds)))
+        quads.add(Quad(LocalQuadValue(path), SchemaOrg.SAME_AS.uri, cacheObject))
     }
 
     private fun redirect(ctx: Context, currentPath: String, nextSegmentPath: String?) {

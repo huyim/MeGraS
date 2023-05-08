@@ -70,12 +70,12 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
 
     override fun slice(time: Double): TwoDimensionalSegmentation? = null
 
-    override fun toString(): String = "segment/plane/$a,$b,$c,$d" + if (above) "1" else "0"
+    override fun getDefinition(): String = "$a,$b,$c,$d" + if (above) "1" else "0"
 }
 
-data class RotoscopePair(var time: Double, val space: TwoDimensionalSegmentation)
+data class RotoscopePair(var time: Double, var space: TwoDimensionalSegmentation)
 
-class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation(), Translatable {
+class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation() {
     override val segmentationType = SegmentationType.ROTOSCOPE
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: SegmentationBounds
@@ -105,14 +105,11 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         bounds = SegmentationBounds(minX, maxX, minY, maxY, rotoscopeList.first().time, rotoscopeList.last().time)
     }
 
-    override fun translate(by: SegmentationBounds) {
+    override fun translate(by: SegmentationBounds): Segmentation {
         if (by.dimensions >= 2) {
-            rotoscopeList.forEach {
-                it.time += by.getMinT()
-                it.space.translate(by)
-            }
-            bounds.translate(by)
+            return Rotoscope(rotoscopeList.map { RotoscopePair(it.time + by.getMinT(), it.space.translate(by) as TwoDimensionalSegmentation) })
         }
+        return this
     }
 
     override fun slice(time: Double): TwoDimensionalSegmentation? {
@@ -132,14 +129,14 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
 
         val keepBounds = bounds
         return object: TwoDimensionalSegmentation() {
+            override val segmentationType = null
             override var shape: Shape = newShape
             override var bounds: SegmentationBounds = keepBounds
-            override val segmentationType = null
-            override fun toString(): String = ""
+            override fun getDefinition(): String = ""
         }
     }
 
-    override fun toString(): String = "segment/rotoscope/" + rotoscopeList.joinToString(";") {
+    override fun getDefinition(): String = rotoscopeList.joinToString(";") {
         val shapeString = it.space.toString().removePrefix("segment/").replace("/", ",")
         "${it.time},${shapeString}"
     }
@@ -152,7 +149,7 @@ data class Vertex(val x: Float, val y: Float) {
     }
 }
 
-class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translatable {
+class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation() {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: SegmentationBounds
@@ -212,7 +209,7 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
         obj = sortedObj
     }
 
-    override fun translate(by: SegmentationBounds) {
+    override fun translate(by: SegmentationBounds): Segmentation {
         val minX = by.getMinX().toFloat()
         val minY = by.getMinY().toFloat()
         val minT = by.getMinT().toFloat()
@@ -226,8 +223,7 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
             val face = obj.getFace(j)
             newObj.addFace(face)
         }
-        obj = newObj
-        bounds.translate(by)
+        return MeshBody(newObj)
     }
 
     override fun slice(time: Double): TwoDimensionalSegmentation? {
@@ -305,7 +301,7 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
             override var shape: Shape = path
             override var bounds: SegmentationBounds = keepBounds
             override val segmentationType = null
-            override fun toString(): String = ""
+            override fun getDefinition(): String = ""
         }
     }
 
@@ -315,11 +311,11 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Translata
         return Vertex(x, y)
     }
 
-    override fun toString(): String {
+    override fun getDefinition(): String {
         val outputStream = ByteArrayOutputStream()
         ObjWriter.write(obj, outputStream)
         val outputString = outputStream.toString(Charset.defaultCharset())
-        return "segment/mesh/" + outputString.replace("\n", ",")
+        return outputString.replace("\n", ",")
     }
 }
 

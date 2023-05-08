@@ -30,13 +30,13 @@ abstract class ChannelSegmentation(val selection: List<String>) : ReductionalSeg
 class StreamChannel(selection: List<String>) : ChannelSegmentation(selection) {
     override val segmentationType: SegmentationType = SegmentationType.CHANNEL
 
-    override fun toString(): String = "segment/channel/" + selection.joinToString(",")
+    override fun getDefinition(): String = selection.joinToString(",")
 }
 
 class ColorChannel(selection: List<String>) : ChannelSegmentation(selection) {
     override val segmentationType: SegmentationType = SegmentationType.COLOR
 
-    override fun toString(): String = "segment/color/" + selection.joinToString(",")
+    override fun getDefinition(): String = selection.joinToString(",")
 }
 
 class Frequency(val interval: Interval<Int>) : ReductionalSegmentation() {
@@ -63,5 +63,5 @@ class Frequency(val interval: Interval<Int>) : ReductionalSegmentation() {
         return this.interval.high >= rhs.interval.low && this.interval.low <= rhs.interval.high
     }
 
-    override fun toString(): String = "segment/frequency/$interval.low-$interval.high"
+    override fun getDefinition(): String = "$interval.low-$interval.high"
 }

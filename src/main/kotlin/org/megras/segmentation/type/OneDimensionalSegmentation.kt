@@ -28,7 +28,7 @@ abstract class OneDimensionalSegmentation : Segmentation {
     }
 }
 
-private operator fun Number.compareTo(low: Number): Int {
+operator fun Number.compareTo(low: Number): Int {
     if (this is Int) return this.compareTo(low.toInt())
     if (this is Double) return this.compareTo(low.toDouble())
     if (this is Long) return this.compareTo(low.toLong())
@@ -42,22 +42,22 @@ private operator fun Number.plus(other: Number): Number {
     return this.toDouble().plus(other.toDouble())
 }
 
-abstract class TemporalSegmentation(final override var intervals: List<Interval<*>>) : OneDimensionalSegmentation(), Translatable {
+abstract class TemporalSegmentation(final override var intervals: List<Interval<*>>) : OneDimensionalSegmentation() {
     override val segmentationClass: SegmentationClass = SegmentationClass.TIME
     override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
 
-    override fun translate(by: SegmentationBounds) {
-        if (by.dimensions == 1) {
-            intervals = intervals.map { Interval(it.low + by.getMinX(), it.high + by.getMinX()) }
-            bounds.translate(by)
-        }
-    }
-
-    override fun toString(): String = "segment/" + segmentationType!!.name.lowercase() + "/" + intervals.joinToString(",") { "${it.low}-${it.high}" }
+    override fun getDefinition(): String = intervals.joinToString(",") { "${it.low}-${it.high}" }
 }
 
 class Time(intervals: List<Interval<Double>>) : TemporalSegmentation(intervals) {
     override val segmentationType = SegmentationType.TIME
+
+    override fun translate(by: SegmentationBounds): Segmentation {
+        if (by.dimensions == 1) {
+            return Time(intervals.map { Interval(it.low.toDouble() + by.getMinX(), it.high.toDouble() + by.getMinX()) })
+        }
+        return this
+    }
 
     fun getIntervalsToDiscard(): List<Interval<Double>> {
         val newIntervals = mutableListOf<Interval<Double>>()
@@ -71,10 +71,24 @@ class Time(intervals: List<Interval<Double>>) : TemporalSegmentation(intervals) 
 
 class Character(intervals: List<Interval<Int>>) : TemporalSegmentation(intervals) {
     override val segmentationType = SegmentationType.CHARACTER
+
+    override fun translate(by: SegmentationBounds): Segmentation {
+        if (by.dimensions == 1) {
+            return Character(intervals.map { Interval(it.low.toInt() + by.getMinX().toInt(), it.high.toInt() + by.getMinX().toInt()) })
+        }
+        return this
+    }
 }
 
 class Page(intervals: List<Interval<Int>>) : TemporalSegmentation(intervals) {
     override val segmentationType = SegmentationType.PAGE
+
+    override fun translate(by: SegmentationBounds): Segmentation {
+        if (by.dimensions == 1) {
+            return Page(intervals.map { Interval(it.low.toInt() + by.getMinX().toInt(), it.high.toInt() + by.getMinX().toInt()) })
+        }
+        return this
+    }
 }
 
 class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<Interval<*>>) : OneDimensionalSegmentation() {
@@ -129,5 +143,5 @@ class Hilbert(val dimensions: Int, val order: Int, override var intervals: List<
         return found != null
     }
 
-    override fun toString(): String = "segment/hilbert/${dimensions},${order}," + intervals.joinToString(",") {"${it.low}-${it.high}"}
+    override fun getDefinition(): String = "${dimensions},${order}," + intervals.joinToString(",") {"${it.low}-${it.high}"}
 }

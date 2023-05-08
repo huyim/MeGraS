@@ -2,6 +2,7 @@ package org.megras.segmentation.media
 
 import org.megras.segmentation.type.Segmentation
 import org.megras.segmentation.type.Time
+import org.megras.segmentation.type.compareTo
 import java.io.InputStream
 
 

@@ -30,9 +30,13 @@ sealed interface Segmentation {
         return this.bounds.intersects(rhs.bounds)
     }
 
-    override fun toString(): String
-}
+    fun translate(by: SegmentationBounds): Segmentation {
+        return this
+    }
 
-interface Translatable {
-    fun translate(by: SegmentationBounds)
+    fun getType(): String = segmentationType?.name?.lowercase() ?: ""
+
+    fun getDefinition(): String
+
+    fun toURI() = "segment/" + getType() + "/" + getDefinition()
 }

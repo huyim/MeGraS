@@ -21,7 +21,7 @@ import java.util.*
 import javax.imageio.ImageIO
 import kotlin.math.roundToInt
 
-abstract class TwoDimensionalSegmentation : Segmentation, Translatable {
+abstract class TwoDimensionalSegmentation : Segmentation {
     abstract var shape: Shape
 
     override val segmentationClass: SegmentationClass
@@ -40,14 +40,6 @@ abstract class TwoDimensionalSegmentation : Segmentation, Translatable {
         rhsArea.subtract(Area(this.shape))
         return rhsArea.isEmpty
     }
-
-    override fun translate(by: SegmentationBounds) {
-        if (by.dimensions >= 2) {
-            val transform = AffineTransform()
-            transform.translate(by.getMinX(), by.getMinY())
-            this.shape = transform.createTransformedShape(shape)
-        }
-    }
 }
 
 class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double) : TwoDimensionalSegmentation() {
@@ -57,6 +49,13 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
     val height: Double = ymax - ymin
     override var shape: Shape = Rectangle2D.Double(xmin, ymin, width, height)
     override var bounds: SegmentationBounds = SegmentationBounds(shape)
+
+    override fun translate(by: SegmentationBounds): Segmentation {
+        if (by.dimensions >= 2) {
+            return Rect(xmin + by.getMinX(), xmax + by.getMinX(), ymin + by.getMinY(), ymax + by.getMinY())
+        }
+        return this
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -78,7 +77,7 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
         return result
     }
 
-    override fun toString(): String = "segment/rect/$xmin,$xmax,$ymin,$ymax"
+    override fun getDefinition(): String = "$xmin,$xmax,$ymin,$ymax"
 }
 
 class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
@@ -95,6 +94,13 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         require(points.size > 2) {
             throw IllegalArgumentException("A polygon needs at least 3 vertices")
         }
+    }
+
+    override fun translate(by: SegmentationBounds): Segmentation {
+        if (by.dimensions >= 2) {
+            return Polygon(points.map { it.first + by.getMinX() to it.second + by.getMinY() })
+        }
+        return this
     }
 
     override fun equals(other: Any?): Boolean {
@@ -116,19 +122,28 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         return points.sortedBy { it.first }.sortedBy { it.second }.hashCode()
     }
 
-    override fun toString(): String = "segment/polygon/" + points.joinToString(",") { "(${it.first},${it.second})" }
+    override fun getDefinition(): String = points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
-class SVGPath(path: String) : TwoDimensionalSegmentation() {
+class SVGPath(override var shape: Shape) : TwoDimensionalSegmentation() {
+
+    constructor(path: String) : this(AWTPathProducer.createShape(StringReader(path), 0))
 
     override val segmentationType: SegmentationType = SegmentationType.PATH
 
-    override var shape: Shape = AWTPathProducer.createShape(StringReader(path), 0)
     override var bounds: SegmentationBounds = SegmentationBounds(shape)
 
-    override fun toString(): String {
+    override fun translate(by: SegmentationBounds): Segmentation {
+        if (by.dimensions >= 2) {
+            val transform = AffineTransform()
+            transform.translate(by.getMinX(), by.getMinY())
+            return SVGPath(transform.createTransformedShape(shape))
+        }
+        return this
+    }
+
+    override fun getDefinition(): String {
         val output = StringBuilder()
-        output.append("segment/path/")
 
         val iter = shape.getPathIterator(null)
         val coords = FloatArray(6)
@@ -169,7 +184,14 @@ class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensio
         bounds = SegmentationBounds(shape)
     }
 
-    override fun toString(): String = "segment/bezier/" + points.joinToString(",") { "(${it.first},${it.second})" }
+    override fun translate(by: SegmentationBounds): Segmentation {
+        if (by.dimensions >= 2) {
+            return BezierSpline(points.map { it.first + by.getMinX() to it.second + by.getMinY() })
+        }
+        return this
+    }
+
+    override fun getDefinition(): String = points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
 class BSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
@@ -207,7 +229,14 @@ class BSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSe
         bounds = SegmentationBounds(shape)
     }
 
-    override fun toString(): String = "segment/bspline/" + points.joinToString(",") { "(${it.first},${it.second})" }
+    override fun translate(by: SegmentationBounds): Segmentation {
+        if (by.dimensions >= 2) {
+            return BSpline(points.map { it.first + by.getMinX() to it.second + by.getMinY() })
+        }
+        return this
+    }
+
+    override fun getDefinition(): String = points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
 class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() {
@@ -250,10 +279,9 @@ class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() 
         bounds = SegmentationBounds(shape)
     }
 
-    override fun toString(): String {
+    override fun getDefinition(): String {
         val os = ByteArrayOutputStream()
         ImageIO.write(mask, "png", os)
-        val encoded = Base64.getUrlEncoder().encodeToString(os.toByteArray())
-        return "segment/mask/$encoded"
+        return Base64.getUrlEncoder().encodeToString(os.toByteArray())
     }
 }
