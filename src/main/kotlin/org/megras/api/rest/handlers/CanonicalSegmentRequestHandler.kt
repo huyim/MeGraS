@@ -51,29 +51,28 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             nextSegmentPath = "segment/$nextSegmentType/$nextSegmentDefinition"
 
             var nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
-            nextSegmentation = nextSegmentation.translate(segmentation.bounds)
 
-            // if two segmentations of the same type are not overlapping, no valid result can be computed
-            if (!segmentation.intersects(nextSegmentation)) {
-                throw RestErrorStatus.emptySegment
-            }
+            // if two segmentations are orthogonal, there can be no interaction between them
+            if (segmentation.orthogonalTo(nextSegmentation)) {
+                // reorder based on the segmentation types
+                if (SegmentationUtil.shouldSwap(segmentation.segmentationType, nextSegmentation.segmentationType)) {
+                    ctx.redirect("/$objectId/$nextSegmentPath/${segmentation.toURI()}" + (if (tail != null) "/$tail" else ""))
+                    return
+                }
+            } else {
+                nextSegmentation = nextSegmentation.translate(segmentation.bounds)
 
-            // if two segmentations are equivalent, discard the second one
-            if (segmentation.equivalentTo(nextSegmentation)) {
-                ctx.redirect("/$currentPath" + (if (tail != null) "/$tail" else ""))
-                return
-            }
+                // if two segmentations are equivalent, discard the second one
+                if (segmentation.equivalentTo(nextSegmentation)) {
+                    ctx.redirect("/$currentPath" + (if (tail != null) "/$tail" else ""))
+                    return
+                }
 
-            // if the first segmentation contains the second one, directly apply the second one
-            if (segmentation.contains(nextSegmentation)) {
-                ctx.redirect("/$objectId/$nextSegmentation" + (if (tail != null) "/$tail" else ""))
-                return
-            }
-
-            // reorder based on the segmentation types
-            if (SegmentationUtil.shouldSwap(segmentation.segmentationType, nextSegmentation.segmentationType)) {
-                ctx.redirect("/$objectId/$nextSegmentPath/${segmentation.toURI()}" + (if (tail != null) "/$tail" else ""))
-                return
+                // if the first segmentation contains the second one, directly apply the second one
+                if (segmentation.contains(nextSegmentation)) {
+                    ctx.redirect("/$objectId/$nextSegmentation" + (if (tail != null) "/$tail" else ""))
+                    return
+                }
             }
         }
 
@@ -93,7 +92,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             val relevant = quads.filterSubject(LocalQuadValue(objectId))
             if (relevant.size > 0) {
                 val previousSegmentation = getSegmentationForCached(relevant, LocalQuadValue(objectId))
-                if (previousSegmentation != null) {
+                if (previousSegmentation != null && !previousSegmentation.orthogonalTo(segmentation)) {
                     segmentTranslatedByPrevious = segmentation.translate(previousSegmentation.bounds)
 
                     // if this segmentation is equivalent to previous, skip and redirect to it

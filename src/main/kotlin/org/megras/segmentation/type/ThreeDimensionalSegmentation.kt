@@ -62,10 +62,8 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
                 ((above && rhs.d <= this.d) || (!above && this.d <= rhs.d))
     }
 
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is Plane) return false
-        return this.a != rhs.a || this.b != rhs.b || this.c != rhs.c || this.above == rhs.above ||
-                (above && rhs.d <= this.d ) || (!above && this.d <= rhs.d)
+    override fun orthogonalTo(rhs: Segmentation): Boolean {
+        return rhs !is Plane
     }
 
     override fun slice(time: Double): TwoDimensionalSegmentation? = null

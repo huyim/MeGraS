@@ -21,9 +21,8 @@ abstract class ChannelSegmentation(val selection: List<String>) : ReductionalSeg
         return rhs.selection.all { this.selection.contains(it) }
     }
 
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is ChannelSegmentation) return true
-        return this.selection.intersect(rhs.selection.toSet()).isNotEmpty()
+    override fun orthogonalTo(rhs: Segmentation): Boolean {
+        return rhs !is ChannelSegmentation
     }
 }
 
@@ -58,9 +57,8 @@ class Frequency(val interval: Interval<Int>) : ReductionalSegmentation() {
         return this.interval.low <= rhs.interval.low && this.interval.high >= rhs.interval.high
     }
 
-    override fun intersects(rhs: Segmentation): Boolean {
-        if (rhs !is Frequency) return true
-        return this.interval.high >= rhs.interval.low && this.interval.low <= rhs.interval.high
+    override fun orthogonalTo(rhs: Segmentation): Boolean {
+        return rhs !is Frequency
     }
 
     override fun getDefinition(): String = "$interval.low-$interval.high"
