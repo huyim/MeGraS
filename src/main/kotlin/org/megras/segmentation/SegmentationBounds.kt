@@ -41,6 +41,8 @@ class SegmentationBounds {
         dimensions = 1
     }
 
+    constructor(minT: Number, maxT: Number) : this(minT.toDouble(), maxT.toDouble())
+
     constructor(minX: Double, maxX: Double, minY: Double, maxY: Double) {
         this.bounds = doubleArrayOf(
             minX.coerceAtLeast(0.0), maxX.coerceAtLeast(0.0),
@@ -63,7 +65,7 @@ class SegmentationBounds {
     }
 
     fun contains(rhs: SegmentationBounds): Boolean {
-        if (this.dimensions != rhs.dimensions) return false
+        if (this.dimensions > rhs.dimensions) return false
         return when (dimensions) {
             1 -> this.bounds[4] <= rhs.bounds[4] && this.bounds[5] >= rhs.bounds[5]
             2 -> this.bounds[0] <= rhs.bounds[0] && this.bounds[1] >= rhs.bounds[1] &&
@@ -81,12 +83,6 @@ class SegmentationBounds {
                     (!this.bounds[2].isNaN() && !rhs.bounds[2].isNaN()) ||
                     (!this.bounds[4].isNaN() && !rhs.bounds[4].isNaN())
                 )
-    }
-
-    fun translate(by: SegmentationBounds) {
-        val result = DoubleArray(6)
-        Arrays.setAll(result) { i: Int -> this.bounds[i] + by.bounds[i] }
-        bounds = result
     }
 
     fun getMinX(): Double = bounds[0]

@@ -22,8 +22,8 @@ abstract class ThreeDimensionalSegmentation : Segmentation {
 
         val timeBounds = this.bounds.getTBounds()
         for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
-            val shape1 = this.slice(t.toDouble())
-            val shape2 = rhs.slice(t.toDouble())
+            val shape1 = this.slice(t)
+            val shape2 = rhs.slice(t)
             if (shape1 != null && shape2 != null && !shape1.equivalentTo(shape2)) return false
         }
         return true
@@ -35,14 +35,16 @@ abstract class ThreeDimensionalSegmentation : Segmentation {
 
         val timeBounds = rhs.bounds.getTBounds()
         for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
-            val shape1 = this.slice(t.toDouble())
-            val shape2 = rhs.slice(t.toDouble())
+            val shape1 = this.slice(t)
+            val shape2 = rhs.slice(t)
             if (shape1 != null && shape2 != null && !shape1.contains(shape2)) return false
         }
         return true
     }
 
     abstract fun slice(time: Double): TwoDimensionalSegmentation?
+
+    fun slice(time: Int): TwoDimensionalSegmentation? = slice(time.toDouble())
 }
 
 class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) :
@@ -104,8 +106,9 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
     }
 
     override fun translate(by: SegmentationBounds): Segmentation {
-        if (by.dimensions >= 2) {
-            return Rotoscope(rotoscopeList.map { RotoscopePair(it.time + by.getMinT(), it.space.translate(by) as TwoDimensionalSegmentation) })
+        when (by.dimensions) {
+            2 -> return Rotoscope(rotoscopeList.map { RotoscopePair(it.time, it.space.translate(by) as TwoDimensionalSegmentation) })
+            3 -> return Rotoscope(rotoscopeList.map { RotoscopePair(it.time + by.getMinT(), it.space.translate(by) as TwoDimensionalSegmentation) })
         }
         return this
     }
@@ -135,7 +138,7 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
     }
 
     override fun getDefinition(): String = rotoscopeList.joinToString(";") {
-        val shapeString = it.space.toString().removePrefix("segment/").replace("/", ",")
+        val shapeString = it.space.toURI().removePrefix("segment/").replace("/", ",")
         "${it.time},${shapeString}"
     }
 }

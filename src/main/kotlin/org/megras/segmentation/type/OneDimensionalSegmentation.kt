@@ -15,16 +15,21 @@ abstract class OneDimensionalSegmentation : Segmentation {
     abstract var intervals: List<Interval<*>>
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
-        return this.contains(rhs) && rhs.contains(this)
+        if (rhs !is OneDimensionalSegmentation) return false
+        if (this.bounds != rhs.bounds) return false
+        return this.intervals == rhs.intervals
     }
 
     override fun contains(rhs: Segmentation): Boolean {
-        if (rhs !is OneDimensionalSegmentation) return false
-
-        // All rhs intervals are contained in some intervals
-        return rhs.intervals.all { j ->
-            this.intervals.any { i -> i.low <= j.low && j.high <= i.high }
+        if (!this.bounds.contains(rhs.bounds)) return false
+        if (rhs is OneDimensionalSegmentation) {
+            // All rhs intervals are contained in some intervals
+            return rhs.intervals.all { j ->
+                this.intervals.any { i -> i.low <= j.low && j.high <= i.high }
+            }
         }
+        // TODO: compare to ThreeDimensionalSegmentation
+        return false
     }
 }
 
@@ -44,7 +49,7 @@ private operator fun Number.plus(other: Number): Number {
 
 abstract class TemporalSegmentation(final override var intervals: List<Interval<*>>) : OneDimensionalSegmentation() {
     override val segmentationClass: SegmentationClass = SegmentationClass.TIME
-    override var bounds = SegmentationBounds(intervals.first().low.toDouble(), intervals.last().high.toDouble())
+    override var bounds = SegmentationBounds(intervals.first().low, intervals.last().high)
 
     override fun getDefinition(): String = intervals.joinToString(",") { "${it.low}-${it.high}" }
 }

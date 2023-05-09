@@ -34,11 +34,22 @@ abstract class TwoDimensionalSegmentation : Segmentation {
     }
 
     override fun contains(rhs: Segmentation): Boolean {
-        if (rhs !is TwoDimensionalSegmentation) return false
         if (!this.bounds.contains(rhs.bounds)) return false
-        val rhsArea = Area(rhs.shape)
-        rhsArea.subtract(Area(this.shape))
-        return rhsArea.isEmpty
+        if (rhs is TwoDimensionalSegmentation) {
+            val rhsArea = Area(rhs.shape)
+            rhsArea.subtract(Area(this.shape))
+            return rhsArea.isEmpty
+        } else if (rhs is ThreeDimensionalSegmentation) {
+            val (start, end) = rhs.bounds.getTBounds()
+            for (t in start.toInt() .. end.toInt()) {
+                val slice = rhs.slice(t) ?: continue
+                val rhsArea = Area(slice.shape)
+                rhsArea.subtract(Area(this.shape))
+                if (!rhsArea.isEmpty) return false
+            }
+            return true
+        }
+        return false
     }
 }
 
