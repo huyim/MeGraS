@@ -1,9 +1,11 @@
 package org.megras.util
 
-import com.github.kokorin.jaffree.ffmpeg.ChannelInput
-import com.github.kokorin.jaffree.ffmpeg.ChannelOutput
-import com.github.kokorin.jaffree.ffmpeg.FFmpeg
+import com.github.kokorin.jaffree.StreamType
+import com.github.kokorin.jaffree.ffmpeg.*
+import com.github.kokorin.jaffree.ffprobe.FFprobe
+import de.javagl.obj.ObjReader
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
+import org.apache.pdfbox.pdmodel.PDDocument
 import org.megras.data.fs.FileSystemObjectStore
 import org.megras.data.fs.StoredObjectDescriptor
 import org.megras.data.fs.file.PseudoFile
@@ -15,10 +17,15 @@ import org.megras.data.schema.MeGraS
 import org.megras.graphstore.MutableQuadSet
 import org.megras.id.IdUtil
 import org.megras.id.ObjectId
+import org.megras.segmentation.SegmentationBounds
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicLong
 import javax.imageio.ImageIO
+import kotlin.math.max
+import kotlin.math.min
+
 
 object AddFileUtil {
 
@@ -49,10 +56,21 @@ object AddFileUtil {
 
         return when (rawDescriptor.mimeType) {
 
-            //images to keep
-            MimeType.PNG -> rawDescriptor
+            MimeType.PNG -> {
+                val imageStream = objectStore.get(rawDescriptor.id)!!.inputStream()
+                val image = ImageIO.read(imageStream)
 
-            //images to transform
+                val descriptor = StoredObjectDescriptor(
+                    rawDescriptor.id,
+                    rawDescriptor.mimeType,
+                    rawDescriptor.length,
+                    SegmentationBounds(0, image.width, 0, image.height)
+                )
+                objectStore.store(imageStream, descriptor)
+
+                //return
+                descriptor
+            }
             MimeType.JPEG_I,
             MimeType.BMP,
             MimeType.GIF,
@@ -79,7 +97,8 @@ object AddFileUtil {
                     val descriptor = StoredObjectDescriptor(
                         id,
                         MimeType.PNG,
-                        buf.size.toLong()
+                        buf.size.toLong(),
+                        SegmentationBounds(0, buffered.width, 0, buffered.height)
                     )
                     objectStore.store(inStream, descriptor)
 
@@ -90,7 +109,6 @@ object AddFileUtil {
                     //TODO log
                     rawDescriptor
                 }
-
             }
 
             MimeType.AAC,
@@ -113,8 +131,14 @@ object AddFileUtil {
                 try {
                     val videoStream = objectStore.get(rawDescriptor.id)!!.byteChannel()
                     val outStream = SeekableInMemoryByteChannel()
+                    val durationMillis = AtomicLong()
+
+                    val probe = FFprobe.atPath().setShowStreams(true).setInput(videoStream).execute().streams
+                    val videoProbe = probe.first { s -> s.codecType == StreamType.VIDEO }
+
                     FFmpeg.atPath()
                         .addInput(ChannelInput.fromChannel(videoStream))
+                        .setProgressListener { progress -> durationMillis.set(progress.timeMillis) }
                         .addArguments("-c:v", "libvpx-vp9")
                         .addArguments("-c:a", "libvorbis")
                         .setOverwriteOutput(true)
@@ -130,7 +154,8 @@ object AddFileUtil {
                     val descriptor = StoredObjectDescriptor(
                         id,
                         MimeType.WEBM,
-                        buf.size.toLong()
+                        buf.size.toLong(),
+                        SegmentationBounds(0, videoProbe.width, 0, videoProbe.height, 0, durationMillis.get() / 1000)
                     )
                     objectStore.store(inStream, descriptor)
 
@@ -143,19 +168,86 @@ object AddFileUtil {
                 }
             }
 
-            //raw and text types to keep
-            MimeType.OCTET_STREAM,
             MimeType.CSS,
             MimeType.CSV,
             MimeType.HTML,
             MimeType.JS,
             MimeType.JSON,
             MimeType.YAML,
-            MimeType.TEXT,
-            MimeType.PDF,
-            MimeType.OBJ -> rawDescriptor
-        }
+            MimeType.TEXT -> {
+                val textStream = objectStore.get(rawDescriptor.id)!!.inputStream()
+                val buffer = textStream.readBytes()
 
+                val descriptor = StoredObjectDescriptor(
+                    rawDescriptor.id,
+                    rawDescriptor.mimeType,
+                    rawDescriptor.length,
+                    SegmentationBounds(0, buffer.size)
+                )
+                objectStore.store(textStream, descriptor)
+
+                //return
+                descriptor
+            }
+
+            MimeType.PDF -> {
+                val pdfStream = objectStore.get(rawDescriptor.id)!!.inputStream()
+                val pdf = PDDocument.load(pdfStream)
+                val page = pdf.getPage(0)
+
+                val descriptor = StoredObjectDescriptor(
+                    rawDescriptor.id,
+                    rawDescriptor.mimeType,
+                    rawDescriptor.length,
+                    SegmentationBounds(0, ptToMm(page.mediaBox.width), 0, ptToMm(page.mediaBox.height), 0, pdf.numberOfPages)
+                )
+                objectStore.store(pdfStream, descriptor)
+
+                //return
+                descriptor
+            }
+            MimeType.OBJ -> {
+                val objStream = objectStore.get(rawDescriptor.id)!!.inputStream()
+                val obj = ObjReader.read(objStream)
+
+                val b = floatArrayOf(
+                    Float.MAX_VALUE, Float.MIN_VALUE,
+                    Float.MAX_VALUE, Float.MIN_VALUE,
+                    Float.MAX_VALUE, Float.MIN_VALUE
+                )
+
+                for (v in 0 until obj.numVertices) {
+                    val vertex = obj.getVertex(v)
+
+                    b[0] = min(vertex.x, b[0])
+                    b[1] = max(vertex.x, b[1])
+                    b[2] = min(vertex.y, b[2])
+                    b[3] = max(vertex.y, b[3])
+                    b[4] = min(vertex.z, b[4])
+                    b[5] = max(vertex.z, b[5])
+                }
+
+                val descriptor = StoredObjectDescriptor(
+                    rawDescriptor.id,
+                    rawDescriptor.mimeType,
+                    rawDescriptor.length,
+                    SegmentationBounds(
+                        b[0].toDouble(), b[1].toDouble(),
+                        b[2].toDouble(), b[3].toDouble(),
+                        b[4].toDouble(), b[5].toDouble()
+                    )
+                )
+                objectStore.store(objStream, descriptor)
+
+                //return
+                descriptor
+            }
+
+            MimeType.OCTET_STREAM -> rawDescriptor
+        }
     }
 
+    private fun ptToMm(pt: Float): Float {
+        return pt * 25.4f / 72;
+    }
 }

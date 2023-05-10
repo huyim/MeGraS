@@ -1,8 +1,8 @@
 package org.megras.data.fs
 
-import kotlinx.serialization.json.Json
 import org.megras.data.fs.file.PseudoFile
 import org.megras.data.mime.MimeType
+import org.megras.segmentation.SegmentationBounds
 import org.megras.util.HashUtil
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -46,7 +46,7 @@ class FileSystemObjectStore(objectStoreBase: String) {
 
     fun store(file: PseudoFile): StoredObjectDescriptor {
         val id = idFromStream(file.inputStream())
-        val descriptor = StoredObjectDescriptor(id, MimeType.mimeType(file.extension), file.length())
+        val descriptor = StoredObjectDescriptor(id, MimeType.mimeType(file.extension), file.length(), SegmentationBounds())
 
         store(file.inputStream(), descriptor)
 
@@ -76,7 +76,7 @@ class FileSystemObjectStore(objectStoreBase: String) {
             return null
         }
 
-        val descriptor = Json.decodeFromString(StoredObjectDescriptor.serializer(), descriptorFile.readText(Charsets.UTF_8))
+        val descriptor = formatter.decodeFromString(StoredObjectDescriptor.serializer(), descriptorFile.readText(Charsets.UTF_8))
 
         return ObjectStoreResult(descriptor, target)
 

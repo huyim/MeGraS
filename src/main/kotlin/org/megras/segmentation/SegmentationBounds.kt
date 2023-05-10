@@ -1,9 +1,9 @@
 package org.megras.segmentation
 
+import kotlinx.serialization.Serializable
 import java.awt.Shape
-import java.util.*
 
-
+@Serializable
 class SegmentationBounds {
 
     private var bounds = DoubleArray(6) { Double.NaN }
@@ -51,6 +51,9 @@ class SegmentationBounds {
         dimensions = 2
     }
 
+    constructor(minX: Number, maxX: Number, minY: Number, maxY: Number)
+            : this(minX.toDouble(), maxX.toDouble(), minY.toDouble(), maxY.toDouble())
+
     constructor(minX: Double, maxX: Double, minY: Double, maxY: Double, minT: Double, maxT: Double) {
         this.bounds = doubleArrayOf(
             minX.coerceAtLeast(0.0), maxX.coerceAtLeast(0.0),
@@ -58,6 +61,9 @@ class SegmentationBounds {
             minT.coerceAtLeast(0.0), maxT.coerceAtLeast(0.0))
         dimensions = 3
     }
+
+    constructor(minX: Number, maxX: Number, minY: Number, maxY: Number, minT: Number, maxT: Number)
+            : this(minX.toDouble(), maxX.toDouble(), minY.toDouble(), maxY.toDouble(), minT.toDouble(), maxT.toDouble())
 
     override fun equals(other: Any?): Boolean {
         if (other !is SegmentationBounds) return false
@@ -98,4 +104,10 @@ class SegmentationBounds {
     fun getTBounds(): DoubleArray = bounds.copyOfRange(4, 6)
 
     override fun toString() = bounds.map { if (it.isNaN()) {"-"} else {it} }.joinToString(",")
+
+    override fun hashCode(): Int {
+        var result = bounds.contentHashCode()
+        result = 31 * result + dimensions
+        return result
+    }
 }

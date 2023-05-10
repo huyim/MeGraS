@@ -132,7 +132,8 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         val descriptor = StoredObjectDescriptor(
             cachedObjectId,
             storedObject.descriptor.mimeType,
-            segment.size.toLong()
+            segment.size.toLong(),
+            segmentation.bounds
         )
 
         inStream.reset()
