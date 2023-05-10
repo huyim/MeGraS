@@ -21,7 +21,7 @@ object AudioVideoSegmenter {
             is TwoDimensionalSegmentation,
             is ThreeDimensionalSegmentation,
             is ColorChannel -> segmentPerFrame(stream, segmentation)
-            is ChannelSegmentation -> segmentChannel(stream, segmentation)
+            is StreamChannel -> segmentChannel(stream, segmentation)
             is Time -> segmentTime(stream, segmentation)
             is Frequency -> segmentFrequency(stream, segmentation)
             else -> null
@@ -77,7 +77,7 @@ object AudioVideoSegmenter {
      * - selection is either "audio" or "video", then discard the other
      * - selection is indices of streams
      */
-    private fun segmentChannel(stream: SeekableByteChannel, channel: ChannelSegmentation): ByteArray? {
+    private fun segmentChannel(stream: SeekableByteChannel, channel: StreamChannel): ByteArray? {
         val out = SeekableInMemoryByteChannel()
         val ffmpeg = FFmpeg
             .atPath()
