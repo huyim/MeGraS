@@ -1,6 +1,6 @@
 package org.megras.segmentation.type
 
-import org.megras.segmentation.SegmentationBounds
+import org.megras.segmentation.Bounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 
@@ -8,7 +8,7 @@ import org.megras.segmentation.SegmentationType
 sealed interface Segmentation {
     val segmentationType: SegmentationType?
     val segmentationClass: SegmentationClass
-    var bounds: SegmentationBounds
+    var bounds: Bounds
 
     /**
      * Attempts to compare equivalence of this segmentation to another one.
@@ -30,7 +30,7 @@ sealed interface Segmentation {
         return this.bounds.orthogonalTo(rhs.bounds)
     }
 
-    fun translate(by: SegmentationBounds): Segmentation {
+    fun translate(by: Bounds): Segmentation {
         return this
     }
 

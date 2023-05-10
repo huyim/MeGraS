@@ -1,12 +1,12 @@
 package org.megras.segmentation.type
 
-import org.megras.segmentation.SegmentationBounds
+import org.megras.segmentation.Bounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 
 abstract class ReductionalSegmentation(val selection: List<String>) : Segmentation {
     override val segmentationClass = SegmentationClass.REDUCE
-    override var bounds: SegmentationBounds = SegmentationBounds()
+    override var bounds: Bounds = Bounds()
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         if (rhs !is ReductionalSegmentation) return false

@@ -2,7 +2,7 @@ package org.megras.segmentation.type
 
 import org.apache.batik.ext.awt.geom.ExtendedPathIterator.*
 import org.apache.batik.parser.AWTPathProducer
-import org.megras.segmentation.SegmentationBounds
+import org.megras.segmentation.Bounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 import org.megras.util.extensions.equalsEpsilon
@@ -59,9 +59,9 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
     val width: Double = xmax - xmin
     val height: Double = ymax - ymin
     override var shape: Shape = Rectangle2D.Double(xmin, ymin, width, height)
-    override var bounds: SegmentationBounds = SegmentationBounds(shape)
+    override var bounds: Bounds = Bounds(shape)
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         if (by.dimensions >= 2) {
             return Rect(xmin + by.getMinX(), xmax + by.getMinX(), ymin + by.getMinY(), ymax + by.getMinY())
         }
@@ -99,7 +99,7 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         points.map { it.second.roundToInt() }.toIntArray(),
         points.size
     )
-    override var bounds: SegmentationBounds = SegmentationBounds(shape)
+    override var bounds: Bounds = Bounds(shape)
 
     init {
         require(points.size > 2) {
@@ -107,7 +107,7 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         }
     }
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         if (by.dimensions >= 2) {
             return Polygon(points.map { it.first + by.getMinX() to it.second + by.getMinY() })
         }
@@ -142,9 +142,9 @@ class SVGPath(override var shape: Shape) : TwoDimensionalSegmentation() {
 
     override val segmentationType: SegmentationType = SegmentationType.PATH
 
-    override var bounds: SegmentationBounds = SegmentationBounds(shape)
+    override var bounds: Bounds = Bounds(shape)
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         if (by.dimensions >= 2) {
             val transform = AffineTransform()
             transform.translate(by.getMinX(), by.getMinY())
@@ -175,7 +175,7 @@ class SVGPath(override var shape: Shape) : TwoDimensionalSegmentation() {
 class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.BEZIER
     override lateinit var shape: Shape
-    override lateinit var bounds: SegmentationBounds
+    override lateinit var bounds: Bounds
 
     init {
         val flattenedControlPoints = points.flatMap { listOf(it.first, it.second) }
@@ -192,10 +192,10 @@ class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensio
         }
 
         shape = path
-        bounds = SegmentationBounds(shape)
+        bounds = Bounds(shape)
     }
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         if (by.dimensions >= 2) {
             return BezierSpline(points.map { it.first + by.getMinX() to it.second + by.getMinY() })
         }
@@ -208,7 +208,7 @@ class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensio
 class BSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation() {
     override val segmentationType: SegmentationType = SegmentationType.BSPLINE
     override lateinit var shape: Shape
-    override lateinit var bounds: SegmentationBounds
+    override lateinit var bounds: Bounds
 
     init {
         val degree: Long = 3
@@ -237,10 +237,10 @@ class BSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSe
         }
 
         shape = path
-        bounds = SegmentationBounds(shape)
+        bounds = Bounds(shape)
     }
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         if (by.dimensions >= 2) {
             return BSpline(points.map { it.first + by.getMinX() to it.second + by.getMinY() })
         }
@@ -254,7 +254,7 @@ class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() 
     override val segmentationType: SegmentationType = SegmentationType.MASK
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override lateinit var shape: Shape
-    override lateinit var bounds: SegmentationBounds
+    override lateinit var bounds: Bounds
 
     init {
         val area = Area()
@@ -287,7 +287,7 @@ class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() 
             }
         }
         shape = area
-        bounds = SegmentationBounds(shape)
+        bounds = Bounds(shape)
     }
 
     override fun getDefinition(): String {

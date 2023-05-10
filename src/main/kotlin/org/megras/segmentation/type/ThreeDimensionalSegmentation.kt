@@ -3,7 +3,7 @@ package org.megras.segmentation.type
 import de.javagl.obj.*
 import de.sciss.shapeint.ShapeInterpolator
 import org.megras.api.rest.RestErrorStatus
-import org.megras.segmentation.SegmentationBounds
+import org.megras.segmentation.Bounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 import java.awt.Shape
@@ -51,7 +51,7 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
     ThreeDimensionalSegmentation() {
     override val segmentationType = SegmentationType.PLANE
     override var segmentationClass = SegmentationClass.SPACE
-    override var bounds: SegmentationBounds = SegmentationBounds()
+    override var bounds: Bounds = Bounds()
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         return rhs is Plane &&
@@ -78,7 +78,7 @@ data class RotoscopePair(var time: Double, var space: TwoDimensionalSegmentation
 class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation() {
     override val segmentationType = SegmentationType.ROTOSCOPE
     override val segmentationClass = SegmentationClass.SPACETIME
-    override lateinit var bounds: SegmentationBounds
+    override lateinit var bounds: Bounds
 
     init {
         require(rotoscopeList.size >= 2) {
@@ -102,10 +102,10 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
             if (bounds.minY < minY) minY = bounds.minY
             if (bounds.maxY > maxY) maxY = bounds.maxY
         }
-        bounds = SegmentationBounds(minX, maxX, minY, maxY, rotoscopeList.first().time, rotoscopeList.last().time)
+        bounds = Bounds(minX, maxX, minY, maxY, rotoscopeList.first().time, rotoscopeList.last().time)
     }
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         when (by.dimensions) {
             2 -> return Rotoscope(rotoscopeList.map { RotoscopePair(it.time, it.space.translate(by) as TwoDimensionalSegmentation) })
             3 -> return Rotoscope(rotoscopeList.map { RotoscopePair(it.time + by.getMinT(), it.space.translate(by) as TwoDimensionalSegmentation) })
@@ -132,7 +132,7 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         return object: TwoDimensionalSegmentation() {
             override val segmentationType = null
             override var shape: Shape = newShape
-            override var bounds: SegmentationBounds = keepBounds
+            override var bounds: Bounds = keepBounds
             override fun getDefinition(): String = ""
         }
     }
@@ -153,7 +153,7 @@ data class Vertex(val x: Float, val y: Float) {
 class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation() {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
-    override lateinit var bounds: SegmentationBounds
+    override lateinit var bounds: Bounds
 
     init {
         val vertices = mutableListOf<FloatTuple>()
@@ -177,7 +177,7 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation() {
             b[5] = max(vertex.z, b[5])
         }
 
-        bounds = SegmentationBounds(
+        bounds = Bounds(
             b[0].toDouble(), b[1].toDouble(),
             b[2].toDouble(), b[3].toDouble(),
             b[4].toDouble(), b[5].toDouble()
@@ -210,7 +210,7 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation() {
         obj = sortedObj
     }
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         val minX = by.getMinX().toFloat()
         val minY = by.getMinY().toFloat()
         val minT = by.getMinT().toFloat()
@@ -300,7 +300,7 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation() {
         val keepBounds = bounds
         return object: TwoDimensionalSegmentation() {
             override var shape: Shape = path
-            override var bounds: SegmentationBounds = keepBounds
+            override var bounds: Bounds = keepBounds
             override val segmentationType = null
             override fun getDefinition(): String = ""
         }

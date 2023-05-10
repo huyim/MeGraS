@@ -1,7 +1,7 @@
 package org.megras.segmentation.type
 
 import org.davidmoten.hilbert.HilbertCurve
-import org.megras.segmentation.SegmentationBounds
+import org.megras.segmentation.Bounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 import java.awt.Color
@@ -16,7 +16,7 @@ class Hilbert(val dimensions: Int, val order: Int, var intervals: List<Interval<
         3 -> SegmentationClass.SPACETIME
         else -> throw IllegalArgumentException("Dimension not supported.")
     }
-    override var bounds = SegmentationBounds(dimensions)
+    override var bounds = Bounds(dimensions)
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         TODO("Not yet implemented")

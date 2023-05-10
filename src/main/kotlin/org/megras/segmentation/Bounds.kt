@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import java.awt.Shape
 
 @Serializable
-class SegmentationBounds {
+class Bounds {
 
     private var bounds = DoubleArray(6) { Double.NaN }
     var dimensions = 0
@@ -66,11 +66,11 @@ class SegmentationBounds {
             : this(minX.toDouble(), maxX.toDouble(), minY.toDouble(), maxY.toDouble(), minT.toDouble(), maxT.toDouble())
 
     override fun equals(other: Any?): Boolean {
-        if (other !is SegmentationBounds) return false
+        if (other !is Bounds) return false
         return this.dimensions == other.dimensions && this.bounds.contentEquals(other.bounds)
     }
 
-    fun contains(rhs: SegmentationBounds): Boolean {
+    fun contains(rhs: Bounds): Boolean {
         if (this.dimensions > rhs.dimensions) return false
         return when (dimensions) {
             1 -> this.bounds[4] <= rhs.bounds[4] && this.bounds[5] >= rhs.bounds[5]
@@ -83,7 +83,7 @@ class SegmentationBounds {
         }
     }
 
-    fun orthogonalTo(rhs: SegmentationBounds): Boolean {
+    fun orthogonalTo(rhs: Bounds): Boolean {
         return !(
                     (!this.bounds[0].isNaN() && !rhs.bounds[0].isNaN()) ||
                     (!this.bounds[2].isNaN() && !rhs.bounds[2].isNaN()) ||

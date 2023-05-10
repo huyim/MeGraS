@@ -17,7 +17,7 @@ import org.megras.data.schema.MeGraS
 import org.megras.graphstore.MutableQuadSet
 import org.megras.id.IdUtil
 import org.megras.id.ObjectId
-import org.megras.segmentation.SegmentationBounds
+import org.megras.segmentation.Bounds
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -64,7 +64,7 @@ object AddFileUtil {
                     rawDescriptor.id,
                     rawDescriptor.mimeType,
                     rawDescriptor.length,
-                    SegmentationBounds(0, image.width, 0, image.height)
+                    Bounds(0, image.width, 0, image.height)
                 )
                 objectStore.store(imageStream, descriptor)
 
@@ -98,7 +98,7 @@ object AddFileUtil {
                         id,
                         MimeType.PNG,
                         buf.size.toLong(),
-                        SegmentationBounds(0, buffered.width, 0, buffered.height)
+                        Bounds(0, buffered.width, 0, buffered.height)
                     )
                     objectStore.store(inStream, descriptor)
 
@@ -155,7 +155,7 @@ object AddFileUtil {
                         id,
                         MimeType.WEBM,
                         buf.size.toLong(),
-                        SegmentationBounds(0, videoProbe.width, 0, videoProbe.height, 0, durationMillis.get() / 1000)
+                        Bounds(0, videoProbe.width, 0, videoProbe.height, 0, durationMillis.get() / 1000)
                     )
                     objectStore.store(inStream, descriptor)
 
@@ -182,7 +182,7 @@ object AddFileUtil {
                     rawDescriptor.id,
                     rawDescriptor.mimeType,
                     rawDescriptor.length,
-                    SegmentationBounds(0, buffer.size)
+                    Bounds(0, buffer.size)
                 )
                 objectStore.store(textStream, descriptor)
 
@@ -199,7 +199,7 @@ object AddFileUtil {
                     rawDescriptor.id,
                     rawDescriptor.mimeType,
                     rawDescriptor.length,
-                    SegmentationBounds(0, ptToMm(page.mediaBox.width), 0, ptToMm(page.mediaBox.height), 0, pdf.numberOfPages)
+                    Bounds(0, ptToMm(page.mediaBox.width), 0, ptToMm(page.mediaBox.height), 0, pdf.numberOfPages)
                 )
                 objectStore.store(pdfStream, descriptor)
 
@@ -231,7 +231,7 @@ object AddFileUtil {
                     rawDescriptor.id,
                     rawDescriptor.mimeType,
                     rawDescriptor.length,
-                    SegmentationBounds(
+                    Bounds(
                         b[0].toDouble(), b[1].toDouble(),
                         b[2].toDouble(), b[3].toDouble(),
                         b[4].toDouble(), b[5].toDouble()

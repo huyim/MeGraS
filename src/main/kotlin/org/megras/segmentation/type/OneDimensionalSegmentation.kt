@@ -1,6 +1,6 @@
 package org.megras.segmentation.type
 
-import org.megras.segmentation.SegmentationBounds
+import org.megras.segmentation.Bounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
 
@@ -44,7 +44,7 @@ private operator fun Number.plus(other: Number): Number {
 
 abstract class TemporalSegmentation(final override var intervals: List<Interval<*>>) : OneDimensionalSegmentation() {
     override val segmentationClass: SegmentationClass = SegmentationClass.TIME
-    override var bounds = SegmentationBounds(intervals.first().low, intervals.last().high)
+    override var bounds = Bounds(intervals.first().low, intervals.last().high)
 
     override fun getDefinition(): String = intervals.joinToString(",") { "${it.low}-${it.high}" }
 }
@@ -52,7 +52,7 @@ abstract class TemporalSegmentation(final override var intervals: List<Interval<
 class Time(intervals: List<Interval<Double>>) : TemporalSegmentation(intervals) {
     override val segmentationType = SegmentationType.TIME
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
             return Time(intervals.map { Interval(it.low.toDouble() + by.getMinX(), it.high.toDouble() + by.getMinX()) })
         }
@@ -72,7 +72,7 @@ class Time(intervals: List<Interval<Double>>) : TemporalSegmentation(intervals) 
 class Character(intervals: List<Interval<Int>>) : TemporalSegmentation(intervals) {
     override val segmentationType = SegmentationType.CHARACTER
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
             return Character(intervals.map { Interval(it.low.toInt() + by.getMinX().toInt(), it.high.toInt() + by.getMinX().toInt()) })
         }
@@ -83,7 +83,7 @@ class Character(intervals: List<Interval<Int>>) : TemporalSegmentation(intervals
 class Page(intervals: List<Interval<Int>>) : TemporalSegmentation(intervals) {
     override val segmentationType = SegmentationType.PAGE
 
-    override fun translate(by: SegmentationBounds): Segmentation {
+    override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
             return Page(intervals.map { Interval(it.low.toInt() + by.getMinX().toInt(), it.high.toInt() + by.getMinX().toInt()) })
         }

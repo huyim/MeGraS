@@ -2,7 +2,7 @@ package org.megras.data.fs
 
 import org.megras.data.fs.file.PseudoFile
 import org.megras.data.mime.MimeType
-import org.megras.segmentation.SegmentationBounds
+import org.megras.segmentation.Bounds
 import org.megras.util.HashUtil
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -46,7 +46,7 @@ class FileSystemObjectStore(objectStoreBase: String) {
 
     fun store(file: PseudoFile): StoredObjectDescriptor {
         val id = idFromStream(file.inputStream())
-        val descriptor = StoredObjectDescriptor(id, MimeType.mimeType(file.extension), file.length(), SegmentationBounds())
+        val descriptor = StoredObjectDescriptor(id, MimeType.mimeType(file.extension), file.length(), Bounds())
 
         store(file.inputStream(), descriptor)
 
