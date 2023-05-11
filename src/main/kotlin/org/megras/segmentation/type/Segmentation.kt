@@ -40,3 +40,8 @@ sealed interface Segmentation {
 
     fun toURI() = "segment/" + getType() + "/" + getDefinition()
 }
+
+interface AllowRelativeSegmentation {
+    val isRelative: Boolean
+    fun toAbsolute(bounds: Bounds): Segmentation?
+}

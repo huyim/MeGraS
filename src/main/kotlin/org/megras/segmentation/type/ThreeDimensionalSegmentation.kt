@@ -75,10 +75,12 @@ class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val abov
 
 data class RotoscopePair(var time: Double, var space: TwoDimensionalSegmentation)
 
-class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation() {
+class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation(), AllowRelativeSegmentation {
     override val segmentationType = SegmentationType.ROTOSCOPE
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: Bounds
+
+    override val isRelative = rotoscopeList.all { it.time in 0.0 .. 1.0 && it.space.isRelative }
 
     init {
         require(rotoscopeList.size >= 2) {
@@ -133,8 +135,15 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
             override val segmentationType = null
             override var shape: Shape = newShape
             override var bounds: Bounds = keepBounds
+            override val isRelative = false
             override fun getDefinition(): String = ""
         }
+    }
+
+    override fun toAbsolute(bounds: Bounds): Segmentation? {
+        if (bounds.dimensions < 3) return null
+        val tFactor = bounds.getTDimension()
+        return Rotoscope(rotoscopeList.map { RotoscopePair(it.time * tFactor, it.space.toAbsolute(bounds) ?: return null) })
     }
 
     override fun getDefinition(): String = rotoscopeList.joinToString(";") {
@@ -150,10 +159,12 @@ data class Vertex(val x: Float, val y: Float) {
     }
 }
 
-class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation() {
+class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), AllowRelativeSegmentation {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: Bounds
+
+    override var isRelative = false
 
     init {
         val vertices = mutableListOf<FloatTuple>()
@@ -182,6 +193,8 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation() {
             b[2].toDouble(), b[3].toDouble(),
             b[4].toDouble(), b[5].toDouble()
         )
+
+        isRelative = b.all { it in 0.0 .. 1.0 }
 
         // Sort vertices ascending and keep track of their old and new index
         val sorter = ObjVertexSorter(vertices)
@@ -302,8 +315,27 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation() {
             override var shape: Shape = path
             override var bounds: Bounds = keepBounds
             override val segmentationType = null
+            override val isRelative = false
             override fun getDefinition(): String = ""
         }
+    }
+
+    override fun toAbsolute(bounds: Bounds): Segmentation? {
+        if (bounds.dimensions < 3) return null
+        val xFactor = bounds.getXDimension().toFloat()
+        val yFactor = bounds.getYDimension().toFloat()
+        val tFactor = bounds.getTDimension().toFloat()
+
+        val newObj = Objs.create()
+        for (i in 0 until obj.numVertices) {
+            val vertex = obj.getVertex(i)
+            newObj.addVertex(vertex.x * xFactor, vertex.y * yFactor, vertex.z * tFactor)
+        }
+        for (j in 0 until obj.numFaces) {
+            val face = obj.getFace(j)
+            newObj.addFace(face)
+        }
+        return MeshBody(newObj)
     }
 
     private fun interpolate(v1: FloatTuple, v2: FloatTuple, t: Float): Vertex {

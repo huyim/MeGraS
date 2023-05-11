@@ -103,6 +103,12 @@ class Bounds {
 
     fun getTBounds(): DoubleArray = bounds.copyOfRange(4, 6)
 
+    fun getXDimension(): Double = bounds[1] - bounds[0]
+
+    fun getYDimension(): Double = bounds[3] - bounds[2]
+
+    fun getTDimension(): Double = bounds[5] - bounds[4]
+
     override fun toString() = bounds.map { if (it.isNaN()) {"-"} else {it} }.joinToString(",")
 
     override fun hashCode(): Int {

@@ -24,7 +24,6 @@ object ImageSegmenter {
     fun segment(image: BufferedImage, segmentation: Segmentation, imageType: Int = BufferedImage.TYPE_4BYTE_ABGR): BufferedImage? =
         when (segmentation) {
             is TwoDimensionalSegmentation -> segmentShape(image, segmentation, imageType)
-            is Hilbert -> segmentHilbert(image, segmentation, imageType)
             is ColorChannel -> segmentColor(image, segmentation, imageType)
             else -> null
         }
@@ -49,11 +48,6 @@ object ImageSegmenter {
             //TODO log
             null
         }
-    }
-
-    private fun segmentHilbert(image: BufferedImage, segmentation: Hilbert, imageType: Int): BufferedImage? {
-        val mask = segmentation.toImageMask(image.width, image.height)
-        return segmentShape(image, mask, imageType)
     }
 
     private fun segmentColor(image: BufferedImage, colorChannel: ColorChannel, imageType: Int): BufferedImage {

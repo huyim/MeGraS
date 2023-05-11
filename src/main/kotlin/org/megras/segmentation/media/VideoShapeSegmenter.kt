@@ -49,14 +49,8 @@ class VideoShapeSegmenter(
             3 -> segmentation.bounds.getTBounds()
             else -> null
         }
-        val frameWidth = when (xBounds[0]) {
-            Double.NEGATIVE_INFINITY -> width
-            else -> (xBounds[1] - xBounds[0]).toInt()
-        }
-        val frameHeight = when (yBounds[0]) {
-            Double.NEGATIVE_INFINITY -> height
-            else -> (yBounds[1] - yBounds[0]).toInt()
-        }
+        val frameWidth = if (xBounds[0].isNaN()) {width} else {(xBounds[1] - xBounds[0]).toInt()}
+        val frameHeight = if (yBounds[0].isNaN()) {height} else {(yBounds[1] - yBounds[0]).toInt()}
 
         val frameProducer = createFrameProducer(frameIterator, tBounds?.get(0) ?: 0.0, frameWidth, frameHeight)
 
@@ -132,7 +126,6 @@ class VideoShapeSegmenter(
 
                 val seg = when (segmentation) {
                     is Rotoscope -> segmentation.slice(nextVideoFrameTimecode.toDouble() / 1000)
-                    is Hilbert -> segmentation.toImageMask(width, height, nextVideoFrameTimecode.toDouble() / totalDuration)
                     is MeshBody -> segmentation.slice(nextVideoFrameTimecode.toDouble() / 1000)
                     else -> segmentation
                 } ?: return null

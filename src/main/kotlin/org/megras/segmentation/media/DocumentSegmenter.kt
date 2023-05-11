@@ -66,7 +66,6 @@ object DocumentSegmenter {
 
             val seg = when (segmentation) {
                 is Rotoscope -> segmentation.slice(i.toDouble())
-                is Hilbert -> segmentation.toImageMask(page.width, page.height, i.toDouble() / (pdf.numberOfPages - 1))
                 is MeshBody -> segmentation.slice(i.toDouble())
                 else -> segmentation
             } ?: return null

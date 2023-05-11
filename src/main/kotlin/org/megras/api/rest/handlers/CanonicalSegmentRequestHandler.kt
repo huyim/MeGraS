@@ -19,6 +19,7 @@ import org.megras.graphstore.QuadSet
 import org.megras.id.ObjectId
 import org.megras.segmentation.SegmentationUtil
 import org.megras.segmentation.media.*
+import org.megras.segmentation.type.AllowRelativeSegmentation
 import org.megras.segmentation.type.Segmentation
 import org.megras.util.HashUtil
 import org.slf4j.LoggerFactory
@@ -43,8 +44,14 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
         val lookInCache = ctx.queryParam("nocache") == null
 
-        val segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
+        val storedObject = getStoredObjectInCache(documentId)
+
+        var segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
         val currentPath = "$documentId/${segmentation.toURI()}"
+
+        if (segmentation is AllowRelativeSegmentation && segmentation.isRelative) {
+            segmentation = segmentation.toAbsolute(storedObject.descriptor.bounds) ?: throw RestErrorStatus.invalidSegmentation
+        }
 
         // check for an additional segmentation
         if (ctx.pathParamMap().containsKey("nextSegmentation")) {
@@ -110,8 +117,6 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
                 }
             }
         }
-
-        val storedObject = getStoredObjectInCache(documentId)
 
         val segment: ByteArray = when(MediaType.mimeTypeMap[storedObject.descriptor.mimeType]) {
             MediaType.TEXT -> TextSegmenter.segment(storedObject.inputStream(), segmentation)

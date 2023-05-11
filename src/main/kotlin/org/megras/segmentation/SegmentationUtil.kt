@@ -86,12 +86,11 @@ object SegmentationUtil {
 
             SegmentationType.HILBERT -> {
                 val elements = segmentDefinition.split(",")
-                val dimensions = elements[0].toIntOrNull()
-                val order = elements[1].toIntOrNull()
+                val order = elements[0].toIntOrNull()
 
-                val ranges = mutableListOf<Interval<Long>>()
+                val ranges = mutableListOf<Interval>()
                 elements.forEach { el ->
-                    val range = el.trim().split("-").map { it.trim().toLongOrNull() ?: return null }
+                    val range = el.trim().split("-").map { it.trim().toDoubleOrNull() ?: return null }
                     when (range.size) {
                         1 -> ranges.add(Interval(range[0], range[0]))
                         2 -> ranges.add(Interval(range[0], range[1]))
@@ -99,11 +98,10 @@ object SegmentationUtil {
                     }
                 }
 
-                ranges.removeAt(1) // order
-                ranges.removeAt(0) // dimension
+                ranges.removeAt(0) // order
 
-                if (dimensions != null && order != null) {
-                    Hilbert(dimensions, order, ranges)
+                if (order != null) {
+                    Hilbert(order, ranges)
                 } else {
                     null
                 }
@@ -120,7 +118,7 @@ object SegmentationUtil {
             }
 
             SegmentationType.FREQUENCY -> {
-                val intervals = parseIntIntervals(segmentDefinition) ?: return null
+                val intervals = parseIntervals(segmentDefinition) ?: return null
 
                 if (intervals.size == 1) {
                     Frequency(intervals[0])
@@ -130,17 +128,17 @@ object SegmentationUtil {
             }
 
             SegmentationType.TIME -> {
-                val intervals = parseDoubleIntervals(segmentDefinition) ?: return null
+                val intervals = parseIntervals(segmentDefinition) ?: return null
                 Time(intervals)
             }
 
             SegmentationType.CHARACTER -> {
-                val intervals = parseIntIntervals(segmentDefinition) ?: return null
+                val intervals = parseIntervals(segmentDefinition) ?: return null
                 Character(intervals)
             }
 
             SegmentationType.PAGE -> {
-                val intervals = parseIntIntervals(segmentDefinition) ?: return null
+                val intervals = parseIntervals(segmentDefinition) ?: return null
                 Page(intervals)
             }
 
@@ -193,26 +191,12 @@ object SegmentationUtil {
         }
     }
 
-    private fun parseDoubleIntervals(segmentDefinition: String): List<Interval<Double>>? {
+    private fun parseIntervals(segmentDefinition: String): List<Interval>? {
         val elements = segmentDefinition.split(",")
 
-        val intervals = mutableListOf<Interval<Double>>()
+        val intervals = mutableListOf<Interval>()
         elements.forEach { el ->
             val range = el.trim().split("-").map { it.trim().toDoubleOrNull() ?: return null }
-            when (range.size) {
-                2 -> intervals.add(Interval(range[0], range[1]))
-                else -> return null
-            }
-        }
-        return intervals
-    }
-
-    private fun parseIntIntervals(segmentDefinition: String): List<Interval<Int>>? {
-        val elements = segmentDefinition.split(",")
-
-        val intervals = mutableListOf<Interval<Int>>()
-        elements.forEach { el ->
-            val range = el.trim().split("-").map { it.trim().toIntOrNull() ?: return null }
             when (range.size) {
                 2 -> intervals.add(Interval(range[0], range[1]))
                 else -> return null
