@@ -35,6 +35,8 @@ object ImageSegmenter {
 
             val transform = AffineTransform()
             transform.translate(-xBounds[0], -yBounds[0])
+            transform.scale(1.0, -1.0)
+            transform.translate(0.0, -yBounds[1] - yBounds[0])
             val movedShape = transform.createTransformedShape(segmentation.shape)
 
             val out = BufferedImage((xBounds[1] - xBounds[0]).toInt(), (yBounds[1] - yBounds[0]).toInt(), imageType)
