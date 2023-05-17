@@ -35,10 +35,10 @@ abstract class TemporalSegmentation(final override var intervals: List<Interval>
     override fun getDefinition(): String = intervals.joinToString(",") { "${it.low}-${it.high}" }
 }
 
-class Time(intervals: List<Interval>) : TemporalSegmentation(intervals), AllowRelativeSegmentation {
+class Time(intervals: List<Interval>) : TemporalSegmentation(intervals), PreprocessSegmentation {
     override val segmentationType = SegmentationType.TIME
 
-    override val isRelative = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
+    override val needsPreprocessing = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
 
     override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
@@ -47,7 +47,7 @@ class Time(intervals: List<Interval>) : TemporalSegmentation(intervals), AllowRe
         return this
     }
 
-    override fun toAbsolute(bounds: Bounds): Segmentation? {
+    override fun preprocess(bounds: Bounds): Segmentation? {
         val factor = bounds.getTDimension()
         if (factor.isNaN()) return null
         return Time(intervals.map { Interval(it.low * factor, it.high * factor) })
@@ -63,10 +63,10 @@ class Time(intervals: List<Interval>) : TemporalSegmentation(intervals), AllowRe
     }
 }
 
-class Character(intervals: List<Interval>) : TemporalSegmentation(intervals), AllowRelativeSegmentation {
+class Character(intervals: List<Interval>) : TemporalSegmentation(intervals), PreprocessSegmentation {
     override val segmentationType = SegmentationType.CHARACTER
 
-    override val isRelative = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
+    override val needsPreprocessing = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
 
     override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
@@ -75,17 +75,17 @@ class Character(intervals: List<Interval>) : TemporalSegmentation(intervals), Al
         return this
     }
 
-    override fun toAbsolute(bounds: Bounds): Segmentation? {
+    override fun preprocess(bounds: Bounds): Segmentation? {
         val factor = bounds.getTDimension()
         if (factor.isNaN()) return null
         return Time(intervals.map { Interval(it.low * factor, it.high * factor) })
     }
 }
 
-class Page(intervals: List<Interval>) : TemporalSegmentation(intervals), AllowRelativeSegmentation {
+class Page(intervals: List<Interval>) : TemporalSegmentation(intervals), PreprocessSegmentation {
     override val segmentationType = SegmentationType.PAGE
 
-    override val isRelative = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
+    override val needsPreprocessing = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
 
     override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
@@ -94,7 +94,7 @@ class Page(intervals: List<Interval>) : TemporalSegmentation(intervals), AllowRe
         return this
     }
 
-    override fun toAbsolute(bounds: Bounds): Segmentation? {
+    override fun preprocess(bounds: Bounds): Segmentation? {
         val factor = bounds.getTDimension()
         if (factor.isNaN()) return null
         return Time(intervals.map { Interval(it.low * factor, it.high * factor) })

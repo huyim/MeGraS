@@ -10,12 +10,12 @@ import java.awt.image.BufferedImage
 import kotlin.math.pow
 import kotlin.math.roundToLong
 
-class Hilbert(val order: Int, var intervals: List<Interval>) : Segmentation, AllowRelativeSegmentation {
+class Hilbert(val order: Int, var intervals: List<Interval>) : Segmentation, PreprocessSegmentation {
     override val segmentationType: SegmentationType = SegmentationType.HILBERT
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override var bounds = Bounds()
 
-    override val isRelative = true
+    override val needsPreprocessing = true
 
     private lateinit var hilbertCurve: SmallHilbertCurve
     private val dimensionSize = (2.0).pow(order) - 1
@@ -30,7 +30,7 @@ class Hilbert(val order: Int, var intervals: List<Interval>) : Segmentation, All
 
     override fun contains(rhs: Segmentation): Boolean = false
 
-    override fun toAbsolute(bounds: Bounds): Segmentation? {
+    override fun preprocess(bounds: Bounds): Segmentation? {
         hilbertCurve = HilbertCurve.small().bits(order).dimensions(bounds.dimensions)
 
         require(intervals.all { it.high <= hilbertCurve.maxIndex() }) {

@@ -19,7 +19,7 @@ import org.megras.graphstore.QuadSet
 import org.megras.id.ObjectId
 import org.megras.segmentation.SegmentationUtil
 import org.megras.segmentation.media.*
-import org.megras.segmentation.type.AllowRelativeSegmentation
+import org.megras.segmentation.type.PreprocessSegmentation
 import org.megras.segmentation.type.Segmentation
 import org.megras.util.HashUtil
 import org.slf4j.LoggerFactory
@@ -49,8 +49,8 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         var segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
         val currentPath = "$documentId/${segmentation.toURI()}"
 
-        if (segmentation is AllowRelativeSegmentation && segmentation.isRelative) {
-            segmentation = segmentation.toAbsolute(storedObject.descriptor.bounds) ?: throw RestErrorStatus.invalidSegmentation
+        if (segmentation is PreprocessSegmentation && segmentation.needsPreprocessing) {
+            segmentation = segmentation.preprocess(storedObject.descriptor.bounds) ?: throw RestErrorStatus.invalidSegmentation
         }
 
         // check for an additional segmentation
