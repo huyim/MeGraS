@@ -1,7 +1,7 @@
 package org.megras.segmentation.media
 
 import de.javagl.obj.*
-import org.megras.segmentation.type.Plane
+import org.megras.segmentation.type.SliceSegmentation
 import org.megras.segmentation.type.Segmentation
 import org.megras.segmentation.SegmentationType
 import java.io.ByteArrayOutputStream
@@ -12,7 +12,7 @@ object MeshSegmenter {
 
     fun segment(inputStream: InputStream, segmentation: Segmentation): ByteArray? = try {
         when(segmentation.segmentationType) {
-            SegmentationType.PLANE -> segmentPlane(inputStream, segmentation as Plane)
+            SegmentationType.SLICE -> segmentPlane(inputStream, segmentation as SliceSegmentation)
             else -> null
         }
     } catch (e: Exception) {
@@ -20,7 +20,7 @@ object MeshSegmenter {
         null
     }
 
-    private fun segmentPlane(inputStream: InputStream, plane: Plane): ByteArray? {
+    private fun segmentPlane(inputStream: InputStream, sliceSegmentation: SliceSegmentation): ByteArray? {
         val obj = ObjReader.read(inputStream)
         val segmentedObj = Objs.create()
 
@@ -37,10 +37,10 @@ object MeshSegmenter {
                 val v1 = obj.getVertex(face.getVertexIndex(v))
                 val v2 = obj.getVertex(face.getVertexIndex((v + 1) % face.numVertices))
 
-                val d1 = (plane.a * v1.x + plane.b * v1.y + plane.c * v1.z + plane.d).toFloat()
-                val d2 = (plane.a * v2.x + plane.b * v2.y + plane.c * v2.z + plane.d).toFloat()
+                val d1 = (sliceSegmentation.a * v1.x + sliceSegmentation.b * v1.y + sliceSegmentation.c * v1.z + sliceSegmentation.d).toFloat()
+                val d2 = (sliceSegmentation.a * v2.x + sliceSegmentation.b * v2.y + sliceSegmentation.c * v2.z + sliceSegmentation.d).toFloat()
 
-                if (d1 >= 0 == plane.above) {
+                if (d1 >= 0 == sliceSegmentation.above) {
                     keepVertices.add(face.getVertexIndex(v))
                 }
 

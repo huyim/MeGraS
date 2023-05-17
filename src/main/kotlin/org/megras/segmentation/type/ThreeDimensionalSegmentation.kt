@@ -47,32 +47,6 @@ abstract class ThreeDimensionalSegmentation : Segmentation {
     fun slice(time: Int): TwoDimensionalSegmentation? = slice(time.toDouble())
 }
 
-class Plane(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) :
-    ThreeDimensionalSegmentation() {
-    override val segmentationType = SegmentationType.PLANE
-    override var segmentationClass = SegmentationClass.SPACE
-    override var bounds: Bounds = Bounds()
-
-    override fun equivalentTo(rhs: Segmentation): Boolean {
-        return rhs is Plane &&
-                this.a == rhs.a && this.b == rhs.b && this.c == rhs.c && this.d == rhs.d && this.above == rhs.above
-    }
-
-    override fun contains(rhs: Segmentation): Boolean {
-        if (rhs !is Plane) return false
-        return this.a == rhs.a && this.b == rhs.b && this.c == rhs.c && this.above == rhs.above &&
-                ((above && rhs.d <= this.d) || (!above && this.d <= rhs.d))
-    }
-
-    override fun orthogonalTo(rhs: Segmentation): Boolean {
-        return rhs !is Plane
-    }
-
-    override fun slice(time: Double): TwoDimensionalSegmentation? = null
-
-    override fun getDefinition(): String = "$a,$b,$c,$d" + if (above) "1" else "0"
-}
-
 data class RotoscopePair(var time: Double, var space: TwoDimensionalSegmentation)
 
 class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation(), PreprocessSegmentation {

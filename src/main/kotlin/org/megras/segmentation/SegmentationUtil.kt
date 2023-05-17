@@ -142,15 +142,15 @@ object SegmentationUtil {
                 Page(intervals)
             }
 
-            SegmentationType.PLANE -> {
+            SegmentationType.SLICE -> {
                 val params = segmentDefinition.split(",").map {
                     it.trim().toDoubleOrNull() ?: return null
                 }
 
-                if (params.size == 5) {
-                    Plane(params[0], params[1], params[2], params[3], params[4] == 1.0)
-                } else {
-                    null
+                when (params.size) {
+                    4 -> SliceSegmentation(params[0], params[1], 0.0, params[2], params[3] == 1.0)
+                    5 -> SliceSegmentation(params[0], params[1], params[2], params[3], params[4] == 1.0)
+                    else -> null
                 }
             }
 
