@@ -22,7 +22,7 @@ import java.util.*
 import javax.imageio.ImageIO
 import kotlin.math.roundToInt
 
-abstract class TwoDimensionalSegmentation : Segmentation, PreprocessSegmentation {
+abstract class TwoDimensionalSegmentation : Segmentation {
     abstract var shape: Shape
 
     override val segmentationClass: SegmentationClass
@@ -52,11 +52,9 @@ abstract class TwoDimensionalSegmentation : Segmentation, PreprocessSegmentation
         }
         return false
     }
-
-    override fun preprocess(bounds: Bounds): TwoDimensionalSegmentation? = this
 }
 
-class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double) : TwoDimensionalSegmentation() {
+class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double) : TwoDimensionalSegmentation(), RelativeSegmentation {
 
     override val segmentationType: SegmentationType = SegmentationType.RECT
     val width: Double = xmax - xmin
@@ -64,7 +62,7 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
     override var shape: Shape = Rectangle2D.Double(xmin, ymin, width, height)
     override var bounds: Bounds = Bounds(shape)
 
-    override val needsPreprocessing = xmin in 0.0..1.0 && xmax in 0.0..1.0 && ymin in 0.0..1.0 && ymax in 0.0..1.0
+    override val isRelative = xmin in 0.0..1.0 && xmax in 0.0..1.0 && ymin in 0.0..1.0 && ymax in 0.0..1.0
 
     override fun translate(by: Bounds): Segmentation {
         if (by.dimensions >= 2) {
@@ -73,7 +71,7 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
         return this
     }
 
-    override fun preprocess(bounds: Bounds): TwoDimensionalSegmentation? {
+    override fun toAbsolute(bounds: Bounds): TwoDimensionalSegmentation? {
         if (bounds.dimensions < 2) return null
         val xFactor = bounds.getXDimension()
         val yFactor = bounds.getYDimension()
@@ -103,7 +101,7 @@ class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Doubl
     override fun getDefinition(): String = "$xmin,$xmax,$ymin,$ymax"
 }
 
-class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation(), PreprocessSegmentation {
+class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation(), RelativeSegmentation {
 
     override val segmentationType: SegmentationType = SegmentationType.POLYGON
     override var shape: Shape = java.awt.Polygon(
@@ -113,7 +111,7 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
     )
     override var bounds: Bounds = Bounds(shape)
 
-    override val needsPreprocessing = points.all { it.first in 0.0 .. 1.0 && it.second in 0.0 .. 1.0 }
+    override val isRelative = points.all { it.first in 0.0 .. 1.0 && it.second in 0.0 .. 1.0 }
 
     init {
         require(points.size > 2) {
@@ -128,7 +126,7 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
         return this
     }
 
-    override fun preprocess(bounds: Bounds): TwoDimensionalSegmentation? {
+    override fun toAbsolute(bounds: Bounds): TwoDimensionalSegmentation? {
         if (bounds.dimensions < 2) return null
         val xFactor = bounds.getXDimension()
         val yFactor = bounds.getYDimension()
@@ -157,12 +155,12 @@ class Polygon(val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentati
     override fun getDefinition(): String = points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
-class SVGPath(override var shape: Shape) : TwoDimensionalSegmentation(), PreprocessSegmentation {
+class SVGPath(override var shape: Shape) : TwoDimensionalSegmentation(), RelativeSegmentation {
 
     override val segmentationType: SegmentationType = SegmentationType.PATH
     override var bounds: Bounds = Bounds(shape)
 
-    override val needsPreprocessing = Rectangle2D.Double(0.0, 0.0, 1.0, 1.0).contains(shape.bounds)
+    override val isRelative = Rectangle2D.Double(0.0, 0.0, 1.0, 1.0).contains(shape.bounds)
 
     constructor(path: String) : this(AWTPathProducer.createShape(StringReader(path), 0))
 
@@ -175,7 +173,7 @@ class SVGPath(override var shape: Shape) : TwoDimensionalSegmentation(), Preproc
         return this
     }
 
-    override fun preprocess(bounds: Bounds): TwoDimensionalSegmentation? {
+    override fun toAbsolute(bounds: Bounds): TwoDimensionalSegmentation? {
         if (bounds.dimensions < 2) return null
         val xFactor = bounds.getXDimension()
         val yFactor = bounds.getYDimension()
@@ -203,12 +201,12 @@ class SVGPath(override var shape: Shape) : TwoDimensionalSegmentation(), Preproc
     }
 }
 
-class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation(), PreprocessSegmentation {
+class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation(), RelativeSegmentation {
     override val segmentationType: SegmentationType = SegmentationType.BEZIER
     override lateinit var shape: Shape
     override lateinit var bounds: Bounds
 
-    override val needsPreprocessing = points.all { it.first in 0.0 .. 1.0 && it.second in 0.0 .. 1.0 }
+    override val isRelative = points.all { it.first in 0.0 .. 1.0 && it.second in 0.0 .. 1.0 }
 
     init {
         val flattenedControlPoints = points.flatMap { listOf(it.first, it.second) }
@@ -235,7 +233,7 @@ class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensio
         return this
     }
 
-    override fun preprocess(bounds: Bounds): TwoDimensionalSegmentation? {
+    override fun toAbsolute(bounds: Bounds): TwoDimensionalSegmentation? {
         if (bounds.dimensions < 2) return null
         val xFactor = bounds.getXDimension()
         val yFactor = bounds.getYDimension()
@@ -245,12 +243,12 @@ class BezierSpline(private val points: List<Pair<Double, Double>>) : TwoDimensio
     override fun getDefinition(): String = points.joinToString(",") { "(${it.first},${it.second})" }
 }
 
-class BSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation(), PreprocessSegmentation {
+class BSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSegmentation(), RelativeSegmentation {
     override val segmentationType: SegmentationType = SegmentationType.BSPLINE
     override lateinit var shape: Shape
     override lateinit var bounds: Bounds
 
-    override val needsPreprocessing = points.all { it.first in 0.0 .. 1.0 && it.second in 0.0 .. 1.0 }
+    override val isRelative = points.all { it.first in 0.0 .. 1.0 && it.second in 0.0 .. 1.0 }
 
     init {
         val degree: Long = 3
@@ -289,7 +287,7 @@ class BSpline(private val points: List<Pair<Double, Double>>) : TwoDimensionalSe
         return this
     }
 
-    override fun preprocess(bounds: Bounds): TwoDimensionalSegmentation? {
+    override fun toAbsolute(bounds: Bounds): TwoDimensionalSegmentation? {
         if (bounds.dimensions < 2) return null
         val xFactor = bounds.getXDimension()
         val yFactor = bounds.getYDimension()
@@ -304,8 +302,6 @@ class ImageMask(private val mask: BufferedImage) : TwoDimensionalSegmentation() 
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override lateinit var shape: Shape
     override lateinit var bounds: Bounds
-
-    override val needsPreprocessing = false
 
     init {
         val area = Area()

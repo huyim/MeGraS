@@ -10,8 +10,6 @@ class SliceSegmentation(val a: Double, val b: Double, val c: Double, val d: Doub
     override var segmentationClass = SegmentationClass.SPACE
     override var bounds: Bounds = Bounds()
 
-    override val needsPreprocessing = true
-
     override fun equivalentTo(rhs: Segmentation): Boolean {
         return rhs is SliceSegmentation &&
                 this.a == rhs.a && this.b == rhs.b && this.c == rhs.c && this.d == rhs.d && this.above == rhs.above

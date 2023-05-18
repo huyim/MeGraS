@@ -6,8 +6,9 @@ import org.megras.segmentation.SegmentationType
 
 data class Interval(val low: Double, val high: Double)
 
-abstract class OneDimensionalSegmentation : Segmentation {
-    abstract var intervals: List<Interval>
+abstract class OneDimensionalSegmentation(val intervals: List<Interval>) : Segmentation {
+    override val segmentationClass = SegmentationClass.TIME
+    override var bounds = Bounds(intervals.first().low, intervals.last().high)
 
     override fun equivalentTo(rhs: Segmentation): Boolean {
         if (rhs !is OneDimensionalSegmentation) return false
@@ -26,19 +27,14 @@ abstract class OneDimensionalSegmentation : Segmentation {
         // TODO: compare to ThreeDimensionalSegmentation
         return false
     }
-}
-
-abstract class TemporalSegmentation(final override var intervals: List<Interval>) : OneDimensionalSegmentation() {
-    override val segmentationClass: SegmentationClass = SegmentationClass.TIME
-    override var bounds = Bounds(intervals.first().low, intervals.last().high)
 
     override fun getDefinition(): String = intervals.joinToString(",") { "${it.low}-${it.high}" }
 }
 
-class Time(intervals: List<Interval>) : TemporalSegmentation(intervals), PreprocessSegmentation {
+class Time(intervals: List<Interval>) : OneDimensionalSegmentation(intervals), RelativeSegmentation {
     override val segmentationType = SegmentationType.TIME
 
-    override val needsPreprocessing = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
+    override val isRelative = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
 
     override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
@@ -47,7 +43,7 @@ class Time(intervals: List<Interval>) : TemporalSegmentation(intervals), Preproc
         return this
     }
 
-    override fun preprocess(bounds: Bounds): Segmentation? {
+    override fun toAbsolute(bounds: Bounds): Segmentation? {
         val factor = bounds.getTDimension()
         if (factor.isNaN()) return null
         return Time(intervals.map { Interval(it.low * factor, it.high * factor) })
@@ -63,10 +59,10 @@ class Time(intervals: List<Interval>) : TemporalSegmentation(intervals), Preproc
     }
 }
 
-class Character(intervals: List<Interval>) : TemporalSegmentation(intervals), PreprocessSegmentation {
+class Character(intervals: List<Interval>) : OneDimensionalSegmentation(intervals), RelativeSegmentation {
     override val segmentationType = SegmentationType.CHARACTER
 
-    override val needsPreprocessing = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
+    override val isRelative = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
 
     override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
@@ -75,17 +71,17 @@ class Character(intervals: List<Interval>) : TemporalSegmentation(intervals), Pr
         return this
     }
 
-    override fun preprocess(bounds: Bounds): Segmentation? {
+    override fun toAbsolute(bounds: Bounds): Segmentation? {
         val factor = bounds.getTDimension()
         if (factor.isNaN()) return null
-        return Time(intervals.map { Interval(it.low * factor, it.high * factor) })
+        return Character(intervals.map { Interval(it.low * factor, it.high * factor) })
     }
 }
 
-class Page(intervals: List<Interval>) : TemporalSegmentation(intervals), PreprocessSegmentation {
+class Page(intervals: List<Interval>) : OneDimensionalSegmentation(intervals), RelativeSegmentation {
     override val segmentationType = SegmentationType.PAGE
 
-    override val needsPreprocessing = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
+    override val isRelative = intervals.all { it.low in 0.0 .. 1.0 && it.high in 0.0 .. 1.0 }
 
     override fun translate(by: Bounds): Segmentation {
         if (by.dimensions == 1) {
@@ -94,14 +90,14 @@ class Page(intervals: List<Interval>) : TemporalSegmentation(intervals), Preproc
         return this
     }
 
-    override fun preprocess(bounds: Bounds): Segmentation? {
+    override fun toAbsolute(bounds: Bounds): Segmentation? {
         val factor = bounds.getTDimension()
         if (factor.isNaN()) return null
-        return Time(intervals.map { Interval(it.low * factor, it.high * factor) })
+        return Page(intervals.map { Interval(it.low * factor, it.high * factor) })
     }
 }
 
-class Frequency(val interval: Interval) : TemporalSegmentation(listOf(interval)) {
+class Frequency(val interval: Interval) : OneDimensionalSegmentation(listOf(interval)) {
     override val segmentationType: SegmentationType = SegmentationType.FREQUENCY
 
     init {

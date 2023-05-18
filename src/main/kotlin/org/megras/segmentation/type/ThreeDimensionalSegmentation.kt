@@ -10,7 +10,6 @@ import org.megras.util.ObjUtil
 import java.awt.Shape
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
-import kotlin.math.abs
 
 abstract class ThreeDimensionalSegmentation : Segmentation {
     override fun equivalentTo(rhs: Segmentation): Boolean {
@@ -46,12 +45,12 @@ abstract class ThreeDimensionalSegmentation : Segmentation {
 
 data class RotoscopePair(var time: Double, var space: TwoDimensionalSegmentation)
 
-class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation(), PreprocessSegmentation {
+class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmentation(), RelativeSegmentation {
     override val segmentationType = SegmentationType.ROTOSCOPE
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: Bounds
 
-    override val needsPreprocessing = rotoscopeList.all { it.time in 0.0 .. 1.0 && it.space.needsPreprocessing }
+    override val isRelative = rotoscopeList.all { it.time in 0.0 .. 1.0 && (it.space is RelativeSegmentation && (it.space as RelativeSegmentation).isRelative) }
 
     init {
         require(rotoscopeList.size >= 2) {
@@ -106,15 +105,18 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
             override val segmentationType = null
             override var shape: Shape = newShape
             override var bounds: Bounds = keepBounds
-            override val needsPreprocessing = false
             override fun getDefinition(): String = ""
         }
     }
 
-    override fun preprocess(bounds: Bounds): Segmentation? {
+    override fun toAbsolute(bounds: Bounds): Segmentation? {
         if (bounds.dimensions < 3) return null
         val tFactor = bounds.getTDimension()
-        return Rotoscope(rotoscopeList.map { RotoscopePair(it.time * tFactor, it.space.preprocess(bounds) ?: return null) })
+        return Rotoscope(rotoscopeList.map {
+            val shape = it.space as RelativeSegmentation
+            RotoscopePair(it.time * tFactor, shape.toAbsolute(bounds) as TwoDimensionalSegmentation)
+        })
+        // TODO: handle case where only time or space is relative
     }
 
     override fun getDefinition(): String = rotoscopeList.joinToString(";") {
@@ -123,16 +125,16 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
     }
 }
 
-class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), PreprocessSegmentation {
+class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), RelativeSegmentation {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: Bounds
-    override var needsPreprocessing = false
+    override var isRelative = false
 
     init {
         obj = ObjUtil.sortMesh(obj)
         bounds = ObjUtil.computeBounds(obj)
-        needsPreprocessing = bounds.needsPreprocessing()
+        isRelative = bounds.isRelative()
     }
 
     override fun translate(by: Bounds): Segmentation {
@@ -153,12 +155,11 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Preproces
             override var shape: Shape = path
             override var bounds: Bounds = keepBounds
             override val segmentationType = null
-            override val needsPreprocessing = false
             override fun getDefinition(): String = ""
         }
     }
 
-    override fun preprocess(bounds: Bounds): Segmentation? {
+    override fun toAbsolute(bounds: Bounds): Segmentation? {
         if (bounds.dimensions < 3) return null
         val xFactor = bounds.getXDimension().toFloat()
         val yFactor = bounds.getYDimension().toFloat()

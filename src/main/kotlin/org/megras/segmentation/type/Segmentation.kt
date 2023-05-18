@@ -40,8 +40,3 @@ sealed interface Segmentation {
 
     fun toURI() = "segment/" + getType() + "/" + getDefinition()
 }
-
-interface PreprocessSegmentation {
-    val needsPreprocessing: Boolean
-    fun preprocess(bounds: Bounds): Segmentation?
-}

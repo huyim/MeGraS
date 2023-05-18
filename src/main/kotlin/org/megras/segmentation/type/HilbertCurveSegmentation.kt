@@ -15,8 +15,6 @@ class Hilbert(val order: Int, var intervals: List<Interval>) : Segmentation, Pre
     override val segmentationClass: SegmentationClass = SegmentationClass.SPACE
     override var bounds = Bounds()
 
-    override val needsPreprocessing = true
-
     private lateinit var hilbertCurve: SmallHilbertCurve
     private val dimensionSize = (2.0).pow(order) - 1
 

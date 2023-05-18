@@ -91,7 +91,7 @@ class Bounds {
                 )
     }
 
-    fun needsPreprocessing(): Boolean = this.bounds.any { it > 1.0 }
+    fun isRelative(): Boolean = this.bounds.any { it > 1.0 }
 
     fun getMinX(): Double = bounds[0]
 
