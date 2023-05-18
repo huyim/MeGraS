@@ -55,18 +55,10 @@ object AudioVideoSegmenter {
         val videoProbe = probe.first { s -> s.codecType == StreamType.VIDEO }
         val frameRate = videoProbe.rFrameRate.toInt()
 
-        val totalDuration = AtomicLong()
-        FFmpeg.atPath()
-            .addInput(ChannelInput.fromChannel(stream))
-            .addOutput(NullOutput())
-            .setProgressListener { progress -> totalDuration.set(progress.timeMillis) }
-            .execute()
-
         return VideoShapeSegmenter(
             stream,
             segmentation,
             frameRate,
-            totalDuration.get(),
             videoProbe.width,
             videoProbe.height
         ).execute()

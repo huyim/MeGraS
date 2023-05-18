@@ -155,7 +155,7 @@ object AddFileUtil {
                         id,
                         MimeType.WEBM,
                         buf.size.toLong(),
-                        Bounds(0, videoProbe.width, 0, videoProbe.height, 0, durationMillis.get() / 1000)
+                        Bounds(0, videoProbe.width, 0, videoProbe.height, 0, durationMillis.get())
                     )
                     objectStore.store(inStream, descriptor)
 

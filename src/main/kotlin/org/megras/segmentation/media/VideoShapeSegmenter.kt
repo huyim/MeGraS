@@ -19,7 +19,6 @@ class VideoShapeSegmenter(
     private val videoStream: SeekableByteChannel,
     val segmentation: Segmentation,
     val frameRate: Int,
-    val totalDuration: Long,
     val width: Int,
     val height: Int
 ) {
@@ -63,8 +62,8 @@ class VideoShapeSegmenter(
         if (tBounds != null) {
             ffmpeg.addInput(
                 ChannelInput.fromChannel(videoStream)
-                    .setPosition(tBounds[0], TimeUnit.SECONDS)
-                    .setDuration(tBounds[1] - tBounds[0], TimeUnit.SECONDS)
+                    .setPosition(tBounds[0], TimeUnit.MILLISECONDS)
+                    .setDuration(tBounds[1] - tBounds[0], TimeUnit.MILLISECONDS)
             )
         } else {
             ffmpeg.addInput(ChannelInput.fromChannel(videoStream))
@@ -86,7 +85,7 @@ class VideoShapeSegmenter(
 
     private fun createFrameProducer(frameIterator: FrameIterator, shift: Double, width: Int, height: Int): FrameProducer {
         return object : FrameProducer {
-            private val shiftTimecode = (shift * 1000.0).toLong()
+            private val shiftTimecode = shift.toLong()
             private val videoFrameDuration = (1000 / frameRate).toLong()
             private var timecode: Long = shiftTimecode
             private var nextVideoFrame: Frame? = null
@@ -125,8 +124,8 @@ class VideoShapeSegmenter(
                 }
 
                 val seg = when (segmentation) {
-                    is Rotoscope -> segmentation.slice(nextVideoFrameTimecode.toDouble() / 1000)
-                    is MeshBody -> segmentation.slice(nextVideoFrameTimecode.toDouble() / 1000)
+                    is Rotoscope -> segmentation.slice(nextVideoFrameTimecode.toDouble())
+                    is MeshBody -> segmentation.slice(nextVideoFrameTimecode.toDouble())
                     else -> segmentation
                 } ?: return null
 
