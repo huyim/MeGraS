@@ -91,11 +91,19 @@ class Bounds {
                 )
     }
 
+    fun needsPreprocessing(): Boolean = this.bounds.any { it > 1.0 }
+
     fun getMinX(): Double = bounds[0]
+
+    fun getMaxX(): Double = bounds[1]
 
     fun getMinY(): Double = bounds[2]
 
+    fun getMaxY(): Double = bounds[3]
+
     fun getMinT(): Double = bounds[4]
+
+    fun getMaxT(): Double = bounds[5]
 
     fun getXBounds(): DoubleArray = bounds.copyOfRange(0, 2)
 

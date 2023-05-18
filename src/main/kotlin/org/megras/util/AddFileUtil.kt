@@ -209,33 +209,13 @@ object AddFileUtil {
             MimeType.OBJ -> {
                 val objStream = objectStore.get(rawDescriptor.id)!!.inputStream()
                 val obj = ObjReader.read(objStream)
-
-                val b = floatArrayOf(
-                    Float.MAX_VALUE, Float.MIN_VALUE,
-                    Float.MAX_VALUE, Float.MIN_VALUE,
-                    Float.MAX_VALUE, Float.MIN_VALUE
-                )
-
-                for (v in 0 until obj.numVertices) {
-                    val vertex = obj.getVertex(v)
-
-                    b[0] = min(vertex.x, b[0])
-                    b[1] = max(vertex.x, b[1])
-                    b[2] = min(vertex.y, b[2])
-                    b[3] = max(vertex.y, b[3])
-                    b[4] = min(vertex.z, b[4])
-                    b[5] = max(vertex.z, b[5])
-                }
+                val bounds = ObjUtil.computeBounds(obj)
 
                 val descriptor = StoredObjectDescriptor(
                     rawDescriptor.id,
                     rawDescriptor.mimeType,
                     rawDescriptor.length,
-                    Bounds(
-                        b[0].toDouble(), b[1].toDouble(),
-                        b[2].toDouble(), b[3].toDouble(),
-                        b[4].toDouble(), b[5].toDouble()
-                    )
+                    bounds
                 )
                 objectStore.store(objStream, descriptor)
 

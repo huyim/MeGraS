@@ -1,9 +1,9 @@
 package org.megras.segmentation.type
 
-import de.javagl.obj.Objs
 import org.megras.segmentation.Bounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
+import org.megras.util.ObjUtil
 
 class SliceSegmentation(val a: Double, val b: Double, val c: Double, val d: Double, val above: Boolean) : Segmentation, PreprocessSegmentation {
     override val segmentationType = SegmentationType.SLICE
@@ -84,7 +84,13 @@ class SliceSegmentation(val a: Double, val b: Double, val c: Double, val d: Doub
     }
 
     private fun toMeshBody(bounds: Bounds): ThreeDimensionalSegmentation {
-        TODO()
+        val obj = ObjUtil.generateCuboid(
+            bounds.getMinX().toFloat(), bounds.getMaxX().toFloat(),
+            bounds.getMinY().toFloat(), bounds.getMaxY().toFloat(),
+            bounds.getMinT().toFloat(), bounds.getMaxT().toFloat()
+        )
+        val segmentedObj = ObjUtil.segmentSlice(obj, a, b, c, d, above)
+        return MeshBody(segmentedObj)
     }
 
     override fun getDefinition(): String = "$a,$b,$c,$d," + if (above) "1" else "0"

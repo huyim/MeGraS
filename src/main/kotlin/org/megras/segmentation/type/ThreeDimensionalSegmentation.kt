@@ -1,19 +1,16 @@
 package org.megras.segmentation.type
 
-import de.javagl.obj.*
+import de.javagl.obj.Obj
+import de.javagl.obj.ObjWriter
 import de.sciss.shapeint.ShapeInterpolator
-import org.megras.api.rest.RestErrorStatus
 import org.megras.segmentation.Bounds
 import org.megras.segmentation.SegmentationClass
 import org.megras.segmentation.SegmentationType
+import org.megras.util.ObjUtil
 import java.awt.Shape
-import java.awt.geom.Path2D
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
-import java.util.*
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 
 abstract class ThreeDimensionalSegmentation : Segmentation {
     override fun equivalentTo(rhs: Segmentation): Boolean {
@@ -126,75 +123,16 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
     }
 }
 
-data class Vertex(val x: Float, val y: Float) {
-    fun almostEqual(other: Vertex): Boolean {
-        val eps = 0.0001
-        return abs(this.x - other.x) < eps && abs(this.y - other.y) < eps
-    }
-}
-
 class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), PreprocessSegmentation {
     override val segmentationType = SegmentationType.MESH
     override val segmentationClass = SegmentationClass.SPACETIME
     override lateinit var bounds: Bounds
-
     override var needsPreprocessing = false
 
     init {
-        val vertices = mutableListOf<FloatTuple>()
-
-        val b = floatArrayOf(
-            Float.MAX_VALUE, Float.MIN_VALUE,
-            Float.MAX_VALUE, Float.MIN_VALUE,
-            Float.MAX_VALUE, Float.MIN_VALUE
-        )
-
-        // Compute bounds and collect vertices
-        for (v in 0 until obj.numVertices) {
-            val vertex = obj.getVertex(v)
-            vertices.add(vertex)
-
-            b[0] = min(vertex.x, b[0])
-            b[1] = max(vertex.x, b[1])
-            b[2] = min(vertex.y, b[2])
-            b[3] = max(vertex.y, b[3])
-            b[4] = min(vertex.z, b[4])
-            b[5] = max(vertex.z, b[5])
-        }
-
-        bounds = Bounds(
-            b[0].toDouble(), b[1].toDouble(),
-            b[2].toDouble(), b[3].toDouble(),
-            b[4].toDouble(), b[5].toDouble()
-        )
-
-        needsPreprocessing = b.all { it in 0.0 .. 1.0 }
-
-        // Sort vertices ascending and keep track of their old and new index
-        val sorter = ObjVertexSorter(vertices)
-        val oldToNewIndex = sorter.getMapping()
-
-        // Collect faces with the updated vertex indices and sort them by index sum
-        val faces = mutableListOf<IntArray>()
-        for (f in 0 until obj.numFaces) {
-            val face = obj.getFace(f)
-            val newFaceIndices = mutableListOf<Int>()
-            for (v in 0 until face.numVertices) {
-                val newFaceIndex = oldToNewIndex[face.getVertexIndex(v)] ?: throw RestErrorStatus.invalidSegmentation
-                newFaceIndices.add(newFaceIndex)
-            }
-            faces.add(newFaceIndices.toIntArray())
-        }
-        faces.sortBy { it.sum() }
-
-        // Add the next vertices and faces to a new obj object
-        val sortedObj = Objs.create()
-        sorter.sortedIndices.forEach { i -> sortedObj.addVertex(vertices[i]) }
-        faces.forEach {face ->
-            val newFace = ObjFaces.create(face, null, null)
-            sortedObj.addFace(newFace)
-        }
-        obj = sortedObj
+        obj = ObjUtil.sortMesh(obj)
+        bounds = ObjUtil.computeBounds(obj)
+        needsPreprocessing = bounds.needsPreprocessing()
     }
 
     override fun translate(by: Bounds): Segmentation {
@@ -202,87 +140,13 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Preproces
         val minY = by.getMinY().toFloat()
         val minT = by.getMinT().toFloat()
 
-        val newObj = Objs.create()
-        for (i in 0 until obj.numVertices) {
-            val vertex = obj.getVertex(i)
-            newObj.addVertex(vertex.x + minX, vertex.y + minY, vertex.z + minT)
-        }
-        for (j in 0 until obj.numFaces) {
-            val face = obj.getFace(j)
-            newObj.addFace(face)
-        }
-        return MeshBody(newObj)
+        val translatedObj = ObjUtil.translate(obj, minX, minY, minT)
+        return MeshBody(translatedObj)
     }
 
     override fun slice(time: Double): TwoDimensionalSegmentation? {
-        val lines: MutableList<Pair<Vertex, Vertex>> = LinkedList()
         val z = time.toFloat()
-
-        // iterate all faces and all vertices
-        for (f in 0 until obj.numFaces) {
-            val face = obj.getFace(f)
-
-            val intersections: MutableSet<Vertex> = mutableSetOf()
-            for (v in 0 until face.numVertices) {
-                val v1 = obj.getVertex(face.getVertexIndex(v))
-                val v2 = obj.getVertex(face.getVertexIndex((v + 1) % face.numVertices))
-                if (v1.z < z && v2.z < z || v1.z > z && v2.z > z) {
-                    continue  // edge does not intersect z-coordinate
-                }
-
-                // compute (interpolate) intersection point and add to list
-                val t = (z - v1.z) / (v2.z - v1.z)
-                if (v1.z == z) {
-                    intersections.add(Vertex(v1.x, v1.y))
-                } else if (v2.z == z) {
-                    intersections.add(Vertex(v2.x, v2.y))
-                } else if (v1.z < z && v2.z > z) {
-                    intersections.add(interpolate(v1, v2, t))
-                } else if (v1.z > z && v2.z < z) {
-                    intersections.add(interpolate(v2, v1, 1 - t))
-                }
-            }
-            // fully intersected faces have two intersection points
-            if (intersections.size == 2) {
-                lines.add(Pair(intersections.first(), intersections.last()))
-            }
-        }
-
-        if (lines.size == 0) {
-            return null
-        }
-
-        // build path
-        val path = Path2D.Float()
-
-        // start with an arbitrary point
-        var current = lines.first().first
-        path.moveTo(current.x, current.y)
-
-        while (lines.size > 0) {
-            // test if the current point is connected to an unvisited point by a line
-            var hasNext = false
-            for (line in lines) {
-                if (current.almostEqual(line.first)) {
-                    current = line.second
-                    hasNext = true
-                } else if (current.almostEqual(line.second)) {
-                    current = line.first
-                    hasNext = true
-                }
-                // if yes, add it to the polygon and start next round
-                if (hasNext) {
-                    path.lineTo(current.x, current.y)
-                    lines.remove(line)
-                    break
-                }
-            }
-            // if no, consider that polygon completed and start a new one
-            if (!hasNext) {
-                current = lines.first().first
-                path.moveTo(current.x, current.y)
-            }
-        }
+        val path = ObjUtil.slice(obj, z) ?: return null
 
         val keepBounds = bounds
         return object: TwoDimensionalSegmentation() {
@@ -300,22 +164,8 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Preproces
         val yFactor = bounds.getYDimension().toFloat()
         val tFactor = bounds.getTDimension().toFloat()
 
-        val newObj = Objs.create()
-        for (i in 0 until obj.numVertices) {
-            val vertex = obj.getVertex(i)
-            newObj.addVertex(vertex.x * xFactor, vertex.y * yFactor, vertex.z * tFactor)
-        }
-        for (j in 0 until obj.numFaces) {
-            val face = obj.getFace(j)
-            newObj.addFace(face)
-        }
+        val newObj = ObjUtil.scale(obj, xFactor, yFactor, tFactor)
         return MeshBody(newObj)
-    }
-
-    private fun interpolate(v1: FloatTuple, v2: FloatTuple, t: Float): Vertex {
-        val x = v1.x + (v2.x - v1.x) * t
-        val y = v1.y + (v2.y - v1.y) * t
-        return Vertex(x, y)
     }
 
     override fun getDefinition(): String {
@@ -323,19 +173,5 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), Preproces
         ObjWriter.write(obj, outputStream)
         val outputString = outputStream.toString(Charset.defaultCharset())
         return outputString.replace("\n", ",")
-    }
-}
-
-class ObjVertexSorter(private val array: List<FloatTuple>) : Comparator<Int> {
-    val sortedIndices = array.indices.sortedWith(this).toMutableList()
-
-    fun getMapping(): HashMap<Int, Int> {
-        val indexMap = hashMapOf<Int, Int>()
-        sortedIndices.forEachIndexed { index, i -> indexMap[i] = index }
-        return indexMap
-    }
-
-    override fun compare(index1: Int, index2: Int): Int {
-        return compareValuesBy(array[index1], array[index2], { it.x }, { it.y }, { it.z })
     }
 }
