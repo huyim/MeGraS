@@ -37,34 +37,31 @@ object SegmentationUtil {
             }
 
             /**
-             * (x,y),(x,y),...,(x,y)
+             * (x,y),(x,y),...,(x,y) or x,y,x,y,...,x,y
              */
             SegmentationType.POLYGON -> {
                 val points = parsePointPairs(segmentDefinition)
-                val finalPoints = points.filterNotNull()
 
-                if (finalPoints.size == points.size) {
-                    Polygon(finalPoints)
+                if (points != null) {
+                    Polygon(points)
                 } else {
                     null
                 }
             }
             SegmentationType.BEZIER -> {
                 val points = parsePointPairs(segmentDefinition)
-                val finalPoints = points.filterNotNull()
 
-                if (finalPoints.size == points.size) {
-                    BezierSpline(finalPoints)
+                if (points != null) {
+                    BezierSpline(points)
                 } else {
                     null
                 }
             }
             SegmentationType.BSPLINE -> {
                 val points = parsePointPairs(segmentDefinition)
-                val finalPoints = points.filterNotNull()
 
-                if (finalPoints.size == points.size) {
-                    BSpline(finalPoints)
+                if (points != null) {
+                    BSpline(points)
                 } else {
                     null
                 }
@@ -205,17 +202,16 @@ object SegmentationUtil {
         return intervals
     }
 
-    private fun parsePointPairs(input: String) : List<Pair<Double, Double>?> {
-        return input.split("),").map { chunk ->
-            val coords = chunk.trim().replaceFirst("(", "").replace(")", "").split(",").map { it.trim().toDoubleOrNull() }
-            if (coords.any { it == null }) {
-                null
-            } else if (coords.size < 2) {
-                null
-            } else {
-                coords[0]!! to coords[1]!!
-            }
+    private fun parsePointPairs(input: String) : List<Pair<Double, Double>>? {
+        val data = input.split(",").map {
+            it.replace("(", "").replace(")", "").trim().toDoubleOrNull() ?: return null
         }
+
+        if (data.size % 2 == 1) return null
+
+        return data.asSequence().windowed(2, 2).map {
+            it[0] to it[1]
+        }.toList()
     }
 
 }
