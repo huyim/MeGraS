@@ -63,7 +63,7 @@ class SliceSegmentation(val a: Double, val b: Double, val c: Double, val d: Doub
         } else {
             points.removeIf { a * it.first + b * it.second - c > 0 }
         }
-        return Polygon(points)
+        return Polygon(points.distinct())
     }
 
     private fun computeIntersectionPoint(x1: Double, y1: Double, x2: Double, y2: Double): Pair<Double, Double>? {
@@ -73,8 +73,10 @@ class SliceSegmentation(val a: Double, val b: Double, val c: Double, val d: Doub
         val determinant = a * b2 - a2 * b
         if (determinant == 0.0) return null
 
-        val x = (b2 * d - b * d2) / determinant
-        val y = (a * d2 - a2 * d) / determinant
+        var x = (b2 * d - b * d2) / determinant
+        if (x == -0.0) x = 0.0
+        var y = (a * d2 - a2 * d) / determinant
+        if (y == -0.0) y = 0.0
 
         if ((x > x1 && x > x2) || (x < x1 && x < x2) || (y > y1 && y > y2) || (y < y1 && y < y2)) return null
 
