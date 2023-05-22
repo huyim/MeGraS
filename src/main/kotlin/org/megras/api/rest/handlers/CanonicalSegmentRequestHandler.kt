@@ -48,14 +48,16 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         val storedObject = getStoredObjectInCache(documentId)
 
         var segmentation = SegmentationUtil.parseSegmentation(segmentType, segmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
-        val currentPath = "$documentId/${segmentation.toURI()}"
+        val currentPaths = mutableListOf("$documentId/${segmentation.toURI()}")
 
         if (segmentation is PreprocessSegmentation) {
             segmentation = segmentation.preprocess(storedObject.descriptor.bounds) ?: throw RestErrorStatus.invalidSegmentation
+            currentPaths.add("$documentId/${segmentation.toURI()}")
         }
 
         if (segmentation is RelativeSegmentation && segmentation.isRelative) {
             segmentation = segmentation.toAbsolute(storedObject.descriptor.bounds) ?: throw RestErrorStatus.invalidSegmentation
+            currentPaths.add("$documentId/${segmentation.toURI()}")
         }
 
         // check for an additional segmentation
@@ -77,7 +79,7 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
                 // if two segmentations are equivalent, discard the second one
                 if (segmentation.equivalentTo(nextSegmentation)) {
-                    ctx.redirect("/$currentPath" + (if (tail != null) "/$tail" else ""))
+                    ctx.redirect("/${currentPaths.first()}" + (if (tail != null) "/$tail" else ""))
                     return
                 }
 
@@ -91,18 +93,18 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
         if (lookInCache) {
             // check for exact path matches
-            var redirectPath = findPathInCache(currentPath)
+            var redirectPath = findPathInCache(currentPaths)
             if (redirectPath != null) {
                 redirect(ctx, redirectPath, nextSegmentation)
-                logger.info("found $currentPath in cache: $redirectPath")
+                logger.info("found ${currentPaths.first()} in cache: $redirectPath")
                 return
             }
 
             // check for equivalent segmentations
-            redirectPath = findEquivalentInCache(objectId, segmentation, currentPath)
+            redirectPath = findEquivalentInCache(objectId, segmentation, currentPaths)
             if (redirectPath != null) {
                 redirect(ctx, redirectPath, nextSegmentation)
-                logger.info("found equivalent to $currentPath in cache: $redirectPath")
+                logger.info("found equivalent to ${currentPaths.first()} in cache: $redirectPath")
                 return
             }
         }
@@ -115,7 +117,9 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
                     // if this segmentation is equivalent to previous, skip and redirect to it
                     if (previousSegmentation.equivalentTo(segmentation.translate(previousSegmentation.bounds))) {
-                        quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, LocalQuadValue(documentId)))
+                        currentPaths.forEach { currentPath ->
+                            quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, LocalQuadValue(documentId)))
+                        }
                         redirect(ctx, LocalQuadValue(objectId).uri, nextSegmentation)
                         return
                     }
@@ -154,20 +158,24 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
         quads.add(Quad(cacheObject, MeGraS.SEGMENT_TYPE.uri, StringValue(segmentation.getType())))
         quads.add(Quad(cacheObject, MeGraS.SEGMENT_DEFINITION.uri, StringValue(segmentation.getDefinition())))
         quads.add(Quad(cacheObject, MeGraS.SEGMENT_BOUNDS.uri, StringValue(segmentation.bounds.toString())))
-        quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cacheObject))
+        currentPaths.forEach { currentPath ->
+            quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cacheObject))
+        }
 
         redirect(ctx, cacheObject.uri, nextSegmentation)
     }
 
-    private fun findPathInCache(currentPath: String): String? {
-        quads.filter(listOf(LocalQuadValue(currentPath)), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
-            val cached = it.`object` as LocalQuadValue
-            return cached.uri
+    private fun findPathInCache(currentPaths: List<String>): String? {
+        currentPaths.forEach { currentPath ->
+            quads.filter(listOf(LocalQuadValue(currentPath)), listOf(SchemaOrg.SAME_AS.uri), null).forEach {
+                val cached = it.`object` as LocalQuadValue
+                return cached.uri
+            }
         }
         return null
     }
 
-    private fun findEquivalentInCache(objectId: String, segmentation: Segmentation, currentPath: String): String? {
+    private fun findEquivalentInCache(objectId: String, segmentation: Segmentation, currentPaths: List<String>): String? {
         quads.filter(
             null, listOf(MeGraS.SEGMENT_OF.uri), listOf(ObjectId(objectId))
         ).forEach { potentialMatch ->
@@ -180,7 +188,9 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
                 if (segmentation.equivalentTo(potentialMatchSegmentation)) {
                     val cached = potentialMatch.subject as LocalQuadValue
-                    quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cached))
+                    currentPaths.forEach { currentPath ->
+                        quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, cached))
+                    }
                     return cached.uri
                 }
             }
