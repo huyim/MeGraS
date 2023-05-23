@@ -126,7 +126,7 @@ object SegmentationUtil {
 
             SegmentationType.TIME -> {
                 val intervals = parseIntervals(segmentDefinition) ?: return null
-                Time(intervals)
+                Time(intervals.map { Interval(it.low * 1000, it.high * 1000) })
             }
 
             SegmentationType.CHARACTER -> {
@@ -166,7 +166,7 @@ object SegmentationUtil {
 
                     val segmentation = parseSegmentation(segmentationType, segmentationDescription)
                     if (time != null && segmentation is TwoDimensionalSegmentation) {
-                        rotoscopeList.add(RotoscopePair(time, segmentation))
+                        rotoscopeList.add(RotoscopePair(time * 1000, segmentation))
                     } else {
                         return null
                     }

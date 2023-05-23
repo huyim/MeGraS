@@ -127,12 +127,12 @@ object AudioVideoSegmenter {
     private fun segmentTime(stream: SeekableByteChannel, time: Time): ByteArray {
         val out = SeekableInMemoryByteChannel()
 
-        val firstPoint = time.intervals.first().low.toDouble()
-        val lastPoint = time.intervals.last().high.toDouble()
+        val firstPoint = time.intervals.first().low
+        val lastPoint = time.intervals.last().high
 
         val ffmpeg = FFmpeg.atPath()
-                .addInput(ChannelInput.fromChannel(stream).setPosition(firstPoint, TimeUnit.SECONDS)
-                        .setDuration(lastPoint - firstPoint, TimeUnit.SECONDS))
+                .addInput(ChannelInput.fromChannel(stream).setPosition(firstPoint, TimeUnit.MILLISECONDS)
+                        .setDuration(lastPoint - firstPoint, TimeUnit.MILLISECONDS))
                 .setOverwriteOutput(true)
 
         if (time.intervals.size > 1) {
