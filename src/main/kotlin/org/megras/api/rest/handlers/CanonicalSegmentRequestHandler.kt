@@ -67,6 +67,14 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
 
             nextSegmentation = SegmentationUtil.parseSegmentation(nextSegmentType, nextSegmentDefinition) ?: throw RestErrorStatus.invalidSegmentation
 
+            if (nextSegmentation is PreprocessSegmentation) {
+                nextSegmentation = nextSegmentation.preprocess(storedObject.descriptor.bounds) ?: throw RestErrorStatus.invalidSegmentation
+            }
+
+            if (nextSegmentation is RelativeSegmentation && nextSegmentation.isRelative) {
+                nextSegmentation = nextSegmentation.toAbsolute(storedObject.descriptor.bounds) ?: throw RestErrorStatus.invalidSegmentation
+            }
+
             // if two segmentations are orthogonal, there can be no interaction between them
             if (segmentation.orthogonalTo(nextSegmentation)) {
                 // reorder based on the segmentation types
