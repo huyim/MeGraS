@@ -28,6 +28,8 @@ class Hilbert(val order: Int, var intervals: List<Interval>) : Segmentation, Pre
 
     override fun contains(rhs: Segmentation): Boolean = false
 
+    override fun contains(rhs: Bounds): Boolean = true
+
     override fun preprocess(bounds: Bounds): Segmentation? {
         hilbertCurve = HilbertCurve.small().bits(order).dimensions(bounds.dimensions)
 

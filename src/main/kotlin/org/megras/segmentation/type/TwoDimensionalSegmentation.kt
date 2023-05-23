@@ -52,6 +52,16 @@ abstract class TwoDimensionalSegmentation : Segmentation {
         }
         return false
     }
+
+    override fun contains(rhs: Bounds): Boolean {
+        val minX = rhs.getMinX()
+        val maxX = rhs.getMaxX()
+        val minY = rhs.getMinY()
+        val maxY = rhs.getMaxY()
+        if (minX.isNaN() || maxX.isNaN() || minY.isNaN() || maxY.isNaN()) return false
+
+        return this.shape.contains(minX, minY, maxX - minX, maxY - minY)
+    }
 }
 
 class Rect(val xmin: Double, val xmax: Double, val ymin: Double, val ymax: Double) : TwoDimensionalSegmentation(), RelativeSegmentation {

@@ -21,6 +21,8 @@ class SliceSegmentation(val a: Double, val b: Double, val c: Double, val d: Doub
                 ((above && rhs.d <= this.d) || (!above && this.d <= rhs.d))
     }
 
+    override fun contains(rhs: Bounds): Boolean = true
+
     override fun orthogonalTo(rhs: Segmentation): Boolean {
         return rhs !is SliceSegmentation
     }

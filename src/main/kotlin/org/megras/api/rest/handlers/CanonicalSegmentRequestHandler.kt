@@ -117,6 +117,18 @@ class CanonicalSegmentRequestHandler(private val quads: MutableQuadSet, private 
             }
         }
 
+        if (!segmentation.bounds.overlaps(storedObject.descriptor.bounds)) {
+            throw RestErrorStatus.emptySegment
+        }
+
+        if (segmentation.contains(storedObject.descriptor.bounds)) {
+            currentPaths.forEach { currentPath ->
+                quads.add(Quad(LocalQuadValue(currentPath), SchemaOrg.SAME_AS.uri, LocalQuadValue(documentId)))
+            }
+            redirect(ctx, LocalQuadValue(documentId).uri, nextSegmentation)
+            return
+        }
+
         if (segmentId != null) {
             val relevant = quads.filterSubject(LocalQuadValue(documentId))
             if (relevant.size > 0) {

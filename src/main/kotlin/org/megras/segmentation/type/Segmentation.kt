@@ -23,6 +23,11 @@ sealed interface Segmentation {
     fun contains(rhs: Segmentation): Boolean
 
     /**
+     * Checks if the segmentation fully contains the medium
+     */
+    fun contains(rhs: Bounds): Boolean
+
+    /**
      * Attempts to determine if this segmentation intersects another one.
      * In cases where the segmentations could be intersecting, but not enough information is available, `false` is returned.
      */

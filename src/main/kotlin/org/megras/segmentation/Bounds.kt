@@ -83,6 +83,14 @@ class Bounds {
         }
     }
 
+    fun overlaps(rhs: Bounds): Boolean {
+        return (
+            (!this.bounds[0].isNaN() && !rhs.bounds[0].isNaN() && this.bounds[0] <= rhs.bounds[1] && this.bounds[1] >= rhs.bounds[0]) ||
+            (!this.bounds[2].isNaN() && !rhs.bounds[2].isNaN() && this.bounds[2] <= rhs.bounds[3] && this.bounds[3] >= rhs.bounds[2]) ||
+            (!this.bounds[4].isNaN() && !rhs.bounds[4].isNaN() && this.bounds[4] <= rhs.bounds[5] && this.bounds[5] >= rhs.bounds[4])
+        )
+    }
+
     fun orthogonalTo(rhs: Bounds): Boolean {
         return !(
                     (!this.bounds[0].isNaN() && !rhs.bounds[0].isNaN()) ||

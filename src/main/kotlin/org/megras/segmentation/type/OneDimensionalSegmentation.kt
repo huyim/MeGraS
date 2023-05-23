@@ -28,6 +28,14 @@ abstract class OneDimensionalSegmentation(val intervals: List<Interval>) : Segme
         return false
     }
 
+    override fun contains(rhs: Bounds): Boolean {
+        val minT = rhs.getMinT()
+        val maxT = rhs.getMaxT()
+        if (minT.isNaN() || maxT.isNaN()) return false
+
+        return this.intervals.any { it.low <= minT && it.high >= maxT }
+    }
+
     override fun getDefinition(): String = intervals.joinToString(",") { "${it.low}-${it.high}" }
 }
 

@@ -30,7 +30,7 @@ abstract class ThreeDimensionalSegmentation : Segmentation {
         if (!this.bounds.contains(rhs.bounds)) return false
 
         val timeBounds = rhs.bounds.getTBounds()
-        for (t in timeBounds[0].toInt() .. timeBounds[0].toInt()) {
+        for (t in timeBounds[0].toInt() .. timeBounds[1].toInt()) {
             val shape1 = this.slice(t)
             val shape2 = rhs.slice(t)
             if (shape1 != null && shape2 != null && !shape1.contains(shape2)) return false
@@ -77,6 +77,14 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         bounds = Bounds(minX, maxX, minY, maxY, rotoscopeList.first().time, rotoscopeList.last().time)
     }
 
+    override fun contains(rhs: Bounds): Boolean {
+        val minT = rhs.getMinT()
+        val maxT = rhs.getMaxT()
+        if (minT.isNaN() || maxT.isNaN()) return false
+
+        return this.rotoscopeList.first().time <= minT && this.rotoscopeList.last().time >= maxT && this.rotoscopeList.all { it.space.contains(rhs) }
+    }
+
     override fun translate(by: Bounds): Segmentation {
         when (by.dimensions) {
             2 -> return Rotoscope(rotoscopeList.map { RotoscopePair(it.time, it.space.translate(by) as TwoDimensionalSegmentation) })
@@ -100,11 +108,10 @@ class Rotoscope(var rotoscopeList: List<RotoscopePair>) : ThreeDimensionalSegmen
         val t = (time - startFrame) / (endFrame - startFrame)
         val newShape = ShapeInterpolator().evaluate(startShape.shape, endShape.shape, t.toFloat())
 
-        val keepBounds = bounds
         return object: TwoDimensionalSegmentation() {
             override val segmentationType = null
             override var shape: Shape = newShape
-            override var bounds: Bounds = keepBounds
+            override var bounds: Bounds = Bounds(newShape)
             override fun getDefinition(): String = ""
         }
     }
@@ -137,6 +144,19 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), RelativeS
         isRelative = bounds.isRelative()
     }
 
+    override fun contains(rhs: Bounds): Boolean {
+        val minX = rhs.getMinX()
+        val maxX = rhs.getMaxX()
+        val minY = rhs.getMinY()
+        val maxY = rhs.getMaxY()
+        val minT = rhs.getMinT()
+        val maxT = rhs.getMaxT()
+        if (minX.isNaN() || maxX.isNaN() || minY.isNaN() || maxY.isNaN() || minT.isNaN() || maxT.isNaN()) return false
+
+        // TODO
+        return false
+    }
+
     override fun translate(by: Bounds): Segmentation {
         val minX = by.getMinX().toFloat()
         val minY = by.getMinY().toFloat()
@@ -153,7 +173,7 @@ class MeshBody(private var obj: Obj) : ThreeDimensionalSegmentation(), RelativeS
         val keepBounds = bounds
         return object: TwoDimensionalSegmentation() {
             override var shape: Shape = path
-            override var bounds: Bounds = keepBounds
+            override var bounds: Bounds = Bounds(path)
             override val segmentationType = null
             override fun getDefinition(): String = ""
         }
